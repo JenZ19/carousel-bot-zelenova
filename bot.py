@@ -4,7 +4,7 @@ import json
 import tempfile
 import logging
 from dotenv import load_dotenv
-from telegram import Update, InputMediaPhoto, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import Update, InputMediaPhoto, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     CallbackQueryHandler, filters, ContextTypes,
@@ -69,12 +69,18 @@ def reset_session(s: dict, mode: str = None):
     s["photos"] = []
 
 
+MAIN_KEYBOARD = ReplyKeyboardMarkup(
+    [[KeyboardButton("▶️ Старт")]],
+    resize_keyboard=True,
+    input_field_placeholder="Нажми Старт или /start",
+)
+
+
 def mode_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📲 Карусель", callback_data="mode:carousel")],
         [InlineKeyboardButton("🔥 Кликбейт-обложка для Reels", callback_data="mode:reels")],
         [InlineKeyboardButton("✍️ Подпись к посту", callback_data="mode:caption")],
-        [InlineKeyboardButton("🧵 Пост для Threads", callback_data="mode:threads")],
     ])
 
 
@@ -295,6 +301,10 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     s["step"] = STEP_MODE
     await update.message.reply_text(
         "Привет! Что делаем? 💫",
+        reply_markup=MAIN_KEYBOARD,
+    )
+    await update.message.reply_text(
+        "Выбери формат:",
         reply_markup=mode_keyboard(),
     )
 
@@ -303,6 +313,10 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     s = get_session(update.effective_user.id)
+
+    if update.message.text == "▶️ Старт":
+        await cmd_start(update, context)
+        return
 
     if s["step"] in (STEP_IDLE, STEP_DONE, STEP_MODE):
         reset_session(s)
@@ -322,17 +336,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await m.edit_text(text)
 
             await _run_caption(update.effective_user.id, reply_caption, edit_caption)
-
-        elif mode == "threads":
-            s["step"] = STEP_DONE
-
-            async def reply_threads(content, reply_markup=None, as_media_group=False, as_photo=False):
-                return await update.message.reply_text(content, reply_markup=reply_markup)
-
-            async def edit_threads(m, text):
-                await m.edit_text(text)
-
-            await _run_threads(update.effective_user.id, reply_threads, edit_threads)
 
         elif mode == "reels":
             s["step"] = STEP_PHOTO
@@ -634,7 +637,6 @@ async def _run_threads(uid: int, reply_func, edit_func):
     await reply_func(
         post,
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("🔄 Другой вариант", callback_data="threads:retry"),
             InlineKeyboardButton("🆕 Новая задача", callback_data="wiz:restart"),
         ]])
     )
@@ -665,13 +667,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Для какого формата нужна подпись?",
                 reply_markup=caption_type_keyboard(),
             )
-        elif mode == "threads":
-            s["step"] = STEP_TEXT
-            await query.edit_message_text(
-                "🧵 Пост для Threads\n\n"
-                "Пришли тему или основную мысль поста 📝\n"
-                "Можно коротко — бот сам сделает цепляющий текст."
-            )
         else:
             await query.edit_message_text(
                 "📲 Карусель\n\n"
@@ -690,20 +685,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Пришли текст поста или его тему 📝\n"
             "Чем больше деталей — тем точнее подпись."
         )
-        return
-
-    if data == "threads:retry":
-        async def reply(content, reply_markup=None, as_media_group=False, as_photo=False):
-            if as_media_group:
-                return await query.message.reply_media_group(content)
-            if as_photo:
-                return await query.message.reply_photo(content, reply_markup=reply_markup)
-            return await query.message.reply_text(content, reply_markup=reply_markup)
-
-        async def edit(m, text):
-            await m.edit_text(text)
-
-        await _run_threads(uid, reply, edit)
         return
 
     if data.startswith("cover:"):
