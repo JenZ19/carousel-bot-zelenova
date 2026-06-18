@@ -1308,8 +1308,8 @@ class CarouselGenerator:
 
     # ── main ──────────────────────────────────────────────────────────────────
 
-    def generate_slide(self, slide_data, theme="warm", username="@username", photo_path=None, photo_mode=None):
-        t = THEMES.get(theme, THEMES["warm"])
+    def generate_slide(self, slide_data, theme="fuchsia", username="@username", photo_path=None, photo_mode=None):
+        t = THEMES.get(theme, THEMES["fuchsia"])
         bg = hex_to_rgb(t["bg"])
 
         img = Image.new("RGB", (W, H), bg)
@@ -1646,10 +1646,10 @@ class CarouselGenerator:
         for ln in tail_lines:
             draw.text((x, y), ln, font=tail_font, fill=main); y += tail_lh
 
-    def generate_cover(self, cover_data, theme="warm", username="@username", photo_path=None):
+    def generate_cover(self, cover_data, theme="fuchsia", username="@username", photo_path=None):
         """Одна кликбейтная вертикальная обложка 1080×1920 для Reels/Shorts."""
         CW, CH = 1080, 1920
-        t = THEMES.get(theme, THEMES["warm"])
+        t = THEMES.get(theme, THEMES["fuchsia"])
         bg = hex_to_rgb(t["bg"])
         img = Image.new("RGB", (CW, CH), bg)
 
