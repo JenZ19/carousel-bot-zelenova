@@ -1583,26 +1583,32 @@ class CarouselGenerator:
         img.paste(Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB"), (0, 0))
 
     def _cover_composition(self, draw, lead, punch, tail, main, sub, accent, CW, top, bottom):
-        """Композиция обложки с иерархией: подводка (мелко, Inter) → ключевая фраза
-        (крупно, Oswald, цветом) → добивка (средне, Inter). Шрифтовая пара + размеры."""
+        """Редакционная композиция обложки.
+        ch06 Dominance: punch — единственный доминант, lead/tail подчинены.
+        ch07 Proximity: lead прилипает к punch (gap=16px) — рубрика, не отдельный элемент.
+        ai-tells: левое выравнивание создаёт editorial ось вместо дефолтной центровки.
+        Якорь в нижней трети — там оверлей темнее, текст читается лучше."""
         pad = 70
+        x = pad                  # левая editorial ось
         max_w = CW - pad * 2
         avail = bottom - top
 
-        # Пара внутри Inter: Regular (whisper) → Bold (уверенный вывод)
-        # Regular/38 = тихий ввод; Bold/60 = сильный финал; разница в весе и размере
-        # ch05 varied scale: 38→60 = ×1.58, каждый шаг ощутим
-        lead_font = self._reg(38)
-        tail_font = self._bold(60)
+        # Lead — Inter-Regular, маленький (шёпот/рубрика над punch)
+        lead_font = self._reg(36)
+        lead_lh = 48
         lead_lines = self._wrap(draw, lead, lead_font, max_w) if lead else []
-        tail_lines = self._wrap(draw, tail, tail_font, max_w) if tail else []
-        lead_lh, tail_lh = 52, 76
         lead_h = len(lead_lines) * lead_lh
-        tail_h = len(tail_lines) * tail_lh
-        gap_lead = 34   # подводка → ключевая фраза
-        gap_tail = 58   # ключевая фраза → добивка (больше — у Oswald длинные выносные)
 
-        # бюджет высоты под ключевую фразу
+        # Tail — Inter-Medium (не Bold): подчинённый финал, не конкурент punch (ch06)
+        tail_font = self._med(52)
+        tail_lh = 66
+        tail_lines = self._wrap(draw, tail, tail_font, max_w) if tail else []
+        tail_h = len(tail_lines) * tail_lh
+
+        gap_lead = 16    # lead прилипает к punch — они одна мысль (ch07 proximity)
+        gap_tail = 76    # дыхание после punch — отделяет вывод (ch07 white space)
+
+        # бюджет высоты под punch
         reserved = lead_h + (gap_lead if lead else 0) + tail_h + (gap_tail if tail else 0)
         punch_budget = max(avail - reserved, 280)
 
@@ -1620,21 +1626,23 @@ class CarouselGenerator:
         punch_h = len(p_lines) * p_lh
 
         total = lead_h + (gap_lead if lead else 0) + punch_h + (gap_tail if tail else 0) + tail_h
-        y = top + (avail - total) // 2
 
+        # Якорь в нижней трети (65%): не по центру — центровка без оси = AI-tell
+        y = top + int((avail - total) * 0.65)
+        y = min(y, bottom - total - 60)
+        y = max(y, top + 40)
+
+        # Всё левое выравнивание — editorial ось
         for ln in lead_lines:
-            w = self._tw(draw, ln, lead_font)
-            draw.text(((CW - w) // 2, y), ln, font=lead_font, fill=sub); y += lead_lh
+            draw.text((x, y), ln, font=lead_font, fill=sub); y += lead_lh
         if lead:
             y += gap_lead
         for ln in p_lines:
-            w = self._tw(draw, ln, pf)
-            draw.text(((CW - w) // 2, y), ln, font=pf, fill=accent); y += p_lh
+            draw.text((x, y), ln, font=pf, fill=accent); y += p_lh
         if tail:
             y += gap_tail
         for ln in tail_lines:
-            w = self._tw(draw, ln, tail_font)
-            draw.text(((CW - w) // 2, y), ln, font=tail_font, fill=main); y += tail_lh
+            draw.text((x, y), ln, font=tail_font, fill=main); y += tail_lh
 
     def generate_cover(self, cover_data, theme="warm", username="@username", photo_path=None):
         """Одна кликбейтная вертикальная обложка 1080×1920 для Reels/Shorts."""
@@ -1686,11 +1694,9 @@ class CarouselGenerator:
         # композиция заголовка — иерархия размеров + шрифтовая пара
         self._cover_composition(draw, lead, punch, tail, main, sub, accent, CW, top_zone, CH - 230)
 
-        # ник снизу — метаданные, не должны конкурировать с контентом
-        # Inter-Regular 34px: тихо, но разборчиво (≈12px на телефоне при 1080→390px)
+        # ник снизу по левой оси — метаданные, Inter-Regular 34px
         uf = self._reg(34)
-        uw = self._tw(draw, username, uf)
-        draw.text(((CW - uw) // 2, CH - 150), username, font=uf, fill=user_col)
+        draw.text((70, CH - 150), username, font=uf, fill=user_col)
 
         tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
         img.save(tmp.name, "PNG")
