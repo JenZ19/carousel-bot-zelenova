@@ -128,6 +128,26 @@ def _collect_strings(obj):
     return out
 
 
+def sanitize_text(text):
+    """Убираем emoji и спецсимволы которые Inter не рендерит — они дают квадратики."""
+    import unicodedata
+    result = []
+    for ch in str(text):
+        cp = ord(ch)
+        # пропускаем emoji-диапазоны и прочие pictographic блоки
+        if (0x1F300 <= cp <= 0x1FAFF or   # Misc Symbols, Emoji
+            0x2600 <= cp <= 0x27BF or      # Misc Symbols, Dingbats
+            0xFE00 <= cp <= 0xFE0F or      # Variation Selectors
+            0x200B <= cp <= 0x200F or      # Zero-width chars
+            cp == 0xFEFF):                 # BOM
+            continue
+        cat = unicodedata.category(ch)
+        if cat.startswith('C') and cat != 'Co':  # Control chars (кроме PUA)
+            continue
+        result.append(ch)
+    return "".join(result)
+
+
 def dedupe_body(body_lines, visual_data):
     """Убираем из body_lines строки, которые уже показаны внутри визуала."""
     vis_norms = [n for n in (_norm_text(s) for s in _collect_strings(visual_data)) if n]
@@ -1303,9 +1323,9 @@ class CarouselGenerator:
             self._draw_decoration(img, theme, deco, slide_num)
 
         draw = ImageDraw.Draw(img)
-        label = slide_data.get("label", "")
-        title = slide_data.get("title", "")
-        body_lines = slide_data.get("body_lines", [])
+        label = sanitize_text(slide_data.get("label", ""))
+        title = sanitize_text(slide_data.get("title", ""))
+        body_lines = [sanitize_text(l) for l in slide_data.get("body_lines", [])]
         accent_word = slide_data.get("accent_word")
         visual_type = slide_data.get("visual_type", "none")
         visual_data = slide_data.get("visual_data", {})
