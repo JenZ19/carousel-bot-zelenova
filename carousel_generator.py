@@ -1533,9 +1533,11 @@ class CarouselGenerator:
         if body_lines:
             y += 24
             bf = self._reg(38)
+            max_w = W - PAD * 2
             for bl in body_lines[:2]:
-                draw.text((PAD, y), bl, font=bf, fill=light)
-                y += 52
+                for wrapped in self._wrap(draw, bl, bf, max_w):
+                    draw.text((PAD, y), wrapped, font=bf, fill=light)
+                    y += 52
 
         # футер
         cf = self._med(25)
