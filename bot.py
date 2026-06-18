@@ -73,6 +73,16 @@ def mode_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📲 Карусель", callback_data="mode:carousel")],
         [InlineKeyboardButton("🔥 Кликбейт-обложка для Reels", callback_data="mode:reels")],
+        [InlineKeyboardButton("✍️ Подпись к посту", callback_data="mode:caption")],
+        [InlineKeyboardButton("🧵 Пост для Threads", callback_data="mode:threads")],
+    ])
+
+
+def caption_type_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🎠 Карусель", callback_data="captype:carousel")],
+        [InlineKeyboardButton("🎬 Reels / Shorts", callback_data="captype:reels")],
+        [InlineKeyboardButton("🖼 Обычный пост", callback_data="captype:feed")],
     ])
 
 
@@ -240,6 +250,44 @@ COVER_PROMPT = """Ты — мастер ВИРУСНЫХ кликбейтных 
 {text}"""
 
 
+CAPTION_PROMPT = """Ты — копирайтер для Instagram в стиле Нейронатали (@neironatali). Пишешь подписи, которые работают на алгоритм: останавливают прокрутку, провоцируют сохранить/прокомментировать, привлекают целевую аудиторию нейросетевых экспертов.
+
+Тип поста: {post_type}
+Тема/текст: {text}
+
+Создай подпись по структуре:
+
+1. ХУК (первые 1-2 строки — до "читать ещё") — самое важное. Должен останавливать. Используй: боль, интригу, провокацию, обещание результата, вопрос в лоб.
+2. ТЕЛО — раскрой ценность, 3-5 ключевых тезисов (можно списком или коротко по-человечески). Не лей воду.
+3. CTA — конкретный призыв: задай вопрос читателям, попроси сохранить/поделиться, напиши что в посте/карусели.
+4. ХЭШТЕГИ — 5-8 штук, релевантных теме. Смешай высоко- и среднечастотные. Отдельной строкой.
+
+Правила:
+- Живой разговорный язык, как будто пишет реальный человек
+- Абзацы с пробелом между ними — для читаемости
+- Никакого канцелярита, официоза, перечислений ради перечислений
+- Эмодзи уместно, но не больше 2-3 и только по смыслу
+- Длина: 700-1200 символов (тело), хэштеги отдельно
+
+Верни готовый текст подписи (без объяснений, без «вот подпись»)."""
+
+
+THREADS_PROMPT = """Ты пишешь пост для Threads от имени Нейронатали (@neironatali) — эксперта по нейросетям и AI-контенту.
+
+Тема: {text}
+
+Threads — это как Twitter, но на русском. Правила жанра:
+- 1-5 коротких абзацев, каждый = одна мысль
+- Первая строка = крючок. Должна цеплять без контекста — её видят в ленте.
+- Обрыв на полуслове, парадокс, провокация, цифра, личный опыт — всё, что заставляет дочитать
+- Разговорный стиль, прямо и честно
+- Заканчивай вопросом ИЛИ неожиданным выводом — провоцируй ответы
+- Никаких хэштегов (в Threads они не работают)
+- Длина: 150-400 символов (короткие посты работают лучше)
+
+Верни только текст поста."""
+
+
 # ── шаг 1: /start — выбор режима ────────────────────────────────────────────
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -262,8 +310,32 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     s["texts"].append(update.message.text)
 
     if s["step"] == STEP_TEXT:
-        s["step"] = STEP_PHOTO
-        if s.get("mode") == "reels":
+        mode = s.get("mode", "carousel")
+
+        if mode == "caption":
+            s["step"] = STEP_DONE
+
+            async def reply_caption(content, reply_markup=None, as_media_group=False, as_photo=False):
+                return await update.message.reply_text(content, reply_markup=reply_markup)
+
+            async def edit_caption(m, text):
+                await m.edit_text(text)
+
+            await _run_caption(update.effective_user.id, reply_caption, edit_caption)
+
+        elif mode == "threads":
+            s["step"] = STEP_DONE
+
+            async def reply_threads(content, reply_markup=None, as_media_group=False, as_photo=False):
+                return await update.message.reply_text(content, reply_markup=reply_markup)
+
+            async def edit_threads(m, text):
+                await m.edit_text(text)
+
+            await _run_threads(update.effective_user.id, reply_threads, edit_threads)
+
+        elif mode == "reels":
+            s["step"] = STEP_PHOTO
             first = "Заголовок принят ✓" if s.get("cover_manual") else "Тема получена ✓"
             await update.message.reply_text(
                 f"{first}\n\n"
@@ -272,6 +344,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=skip_photo_keyboard(),
             )
         else:
+            s["step"] = STEP_PHOTO
             await update.message.reply_text(
                 "Текст получила ✓\n\n"
                 "Шаг 2 из 3 — пришли фото 📷\n"
@@ -493,6 +566,80 @@ async def _run_cover(uid: int, reply_func, edit_func):
         await edit_func(msg, f"Ошибка генерации обложки: {e}")
 
 
+# ── режим Caption: подпись к посту ──────────────────────────────────────────
+
+async def _run_caption(uid: int, reply_func, edit_func):
+    s = get_session(uid)
+
+    if not s["texts"]:
+        await reply_func("Сначала пришли текст. Нажми /start", reply_markup=None)
+        return
+
+    text = "\n\n".join(s["texts"]).strip()
+    post_type = s.get("caption_type", "пост")
+
+    msg = await reply_func("Пишу подпись…")
+
+    try:
+        response = client.chat.completions.create(
+            model=CAROUSEL_MODEL,
+            max_tokens=1000,
+            messages=[{"role": "user", "content": CAPTION_PROMPT.format(
+                text=text,
+                post_type=post_type,
+            )}]
+        )
+        caption = response.choices[0].message.content.strip()
+    except Exception as e:
+        logger.error(f"Caption error: {e}")
+        await edit_func(msg, f"Ошибка: {e}")
+        return
+
+    await msg.delete()
+    s["step"] = STEP_DONE
+    await reply_func(
+        caption,
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🆕 Новая задача", callback_data="wiz:restart")
+        ]])
+    )
+
+
+# ── режим Threads: короткий пост ────────────────────────────────────────────
+
+async def _run_threads(uid: int, reply_func, edit_func):
+    s = get_session(uid)
+
+    if not s["texts"]:
+        await reply_func("Сначала пришли тему. Нажми /start", reply_markup=None)
+        return
+
+    text = "\n\n".join(s["texts"]).strip()
+    msg = await reply_func("Пишу пост для Threads…")
+
+    try:
+        response = client.chat.completions.create(
+            model=CAROUSEL_MODEL,
+            max_tokens=500,
+            messages=[{"role": "user", "content": THREADS_PROMPT.format(text=text)}]
+        )
+        post = response.choices[0].message.content.strip()
+    except Exception as e:
+        logger.error(f"Threads error: {e}")
+        await edit_func(msg, f"Ошибка: {e}")
+        return
+
+    await msg.delete()
+    s["step"] = STEP_DONE
+    await reply_func(
+        post,
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔄 Другой вариант", callback_data="threads:retry"),
+            InlineKeyboardButton("🆕 Новая задача", callback_data="wiz:restart"),
+        ]])
+    )
+
+
 # ── callbacks ───────────────────────────────────────────────────────────────
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -511,12 +658,52 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Кто придумает заголовок?",
                 reply_markup=cover_source_keyboard(),
             )
+        elif mode == "caption":
+            s["step"] = STEP_TEXT
+            await query.edit_message_text(
+                "✍️ Подпись к посту\n\n"
+                "Для какого формата нужна подпись?",
+                reply_markup=caption_type_keyboard(),
+            )
+        elif mode == "threads":
+            s["step"] = STEP_TEXT
+            await query.edit_message_text(
+                "🧵 Пост для Threads\n\n"
+                "Пришли тему или основную мысль поста 📝\n"
+                "Можно коротко — бот сам сделает цепляющий текст."
+            )
         else:
             await query.edit_message_text(
                 "📲 Карусель\n\n"
                 "Шаг 1 из 3 — пришли текст 📝\n"
                 "Можно несколько сообщений подряд."
             )
+        return
+
+    if data.startswith("captype:"):
+        captype = data.split(":")[1]
+        type_names = {"carousel": "карусель", "reels": "Reels", "feed": "пост"}
+        s["caption_type"] = type_names.get(captype, "пост")
+        s["step"] = STEP_TEXT
+        await query.edit_message_text(
+            f"✍️ Подпись для формата: {s['caption_type']}\n\n"
+            "Пришли текст поста или его тему 📝\n"
+            "Чем больше деталей — тем точнее подпись."
+        )
+        return
+
+    if data == "threads:retry":
+        async def reply(content, reply_markup=None, as_media_group=False, as_photo=False):
+            if as_media_group:
+                return await query.message.reply_media_group(content)
+            if as_photo:
+                return await query.message.reply_photo(content, reply_markup=reply_markup)
+            return await query.message.reply_text(content, reply_markup=reply_markup)
+
+        async def edit(m, text):
+            await m.edit_text(text)
+
+        await _run_threads(uid, reply, edit)
         return
 
     if data.startswith("cover:"):
@@ -582,6 +769,20 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await _run_cover(uid, reply, edit)
         else:
             await _run_make(uid, reply, edit)
+        return
+
+    if data == "wiz:caption_go":
+        async def reply(content, reply_markup=None, as_media_group=False, as_photo=False):
+            if as_media_group:
+                return await query.message.reply_media_group(content)
+            if as_photo:
+                return await query.message.reply_photo(content, reply_markup=reply_markup)
+            return await query.message.reply_text(content, reply_markup=reply_markup)
+
+        async def edit(m, text):
+            await m.edit_text(text)
+
+        await _run_caption(uid, reply, edit)
         return
 
 
