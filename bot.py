@@ -30,11 +30,11 @@ COVER_MODEL = "gpt-4.5-preview"
 sessions: dict = {}
 
 THEME_NAMES = {
-    "warm":       "🤎 Крем",
-    "terracotta": "🧱 Терракота",
-    "olive":      "🫒 Олива",
-    "mocha":      "☕ Мокко",
-    "blush":      "🌸 Пудра",
+    "fuchsia": "💗 Фуксия",
+    "hot":     "🔥 Горячий",
+    "blush":   "🌸 Блаш",
+    "pearl":   "🤍 Жемчуг",
+    "plum":    "💜 Слива",
 }
 
 # шаги мастера
@@ -54,8 +54,8 @@ def get_session(user_id: int) -> dict:
             "cover_manual": False,  # для reels: True — заголовок пишет пользователь
             "texts": [],
             "photos": [],   # [{path}]  — режим бот выбирает сам
-            "theme": "warm",
-            "username": "@neironatali",
+            "theme": "fuchsia",
+            "username": "@zelenova_marketing",
         }
     return sessions[user_id]
 
@@ -234,7 +234,7 @@ visual_type варианты (НЕ используй photo_text — фото д
 {text}"""
 
 
-COVER_PROMPT = """Ты — мастер ВИРУСНЫХ кликбейтных обложек для Reels/Shorts в стиле Нейронатали.
+COVER_PROMPT = """Ты — мастер ВИРУСНЫХ кликбейтных обложек для Reels/Shorts в стиле @zelenova_marketing.
 По теме/тексту придумай ОДНУ обложку, которая мгновенно останавливает листание и заставляет нажать.
 
 Обложка строится из ТРЁХ частей с РАЗНЫМ размером шрифта (это важно — не делай всё одинаковым):
@@ -256,7 +256,7 @@ COVER_PROMPT = """Ты — мастер ВИРУСНЫХ кликбейтных 
 {text}"""
 
 
-CAPTION_PROMPT = """Ты — копирайтер для Instagram в стиле Нейронатали (@neironatali). Пишешь подписи, которые работают на алгоритм: останавливают прокрутку, провоцируют сохранить/прокомментировать, привлекают целевую аудиторию нейросетевых экспертов.
+CAPTION_PROMPT = """Ты — копирайтер для Instagram в стиле @zelenova_marketing. Пишешь подписи, которые работают на алгоритм: останавливают прокрутку, провоцируют сохранить/прокомментировать, привлекают целевую аудиторию в нише маркетинга.
 
 Тип поста: {post_type}
 Тема/текст: {text}
@@ -278,7 +278,7 @@ CAPTION_PROMPT = """Ты — копирайтер для Instagram в стиле
 Верни готовый текст подписи (без объяснений, без «вот подпись»)."""
 
 
-THREADS_PROMPT = """Ты пишешь пост для Threads от имени Нейронатали (@neironatali) — эксперта по нейросетям и AI-контенту.
+THREADS_PROMPT = """Ты пишешь пост для Threads от имени @zelenova_marketing — эксперта по маркетингу.
 
 Тема: {text}
 
@@ -778,7 +778,7 @@ async def cmd_username(update: Update, context: ContextTypes.DEFAULT_TYPE):
         s["username"] = name
         await update.message.reply_text(f"Никнейм: {name}")
     else:
-        await update.message.reply_text("Пример: /username @neironatali")
+        await update.message.reply_text("Пример: /username @zelenova_marketing")
 
 
 def main():
