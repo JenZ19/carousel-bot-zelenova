@@ -1834,9 +1834,26 @@ class CarouselGenerator:
             lines.append(" ".join(cur))
 
         line_h = int(size * 1.18)
-        body_block = (len(body_lines[:2]) * 52 + 24) if body_lines else 0
-        start_y = (H - 150) - len(lines) * line_h - body_block
-        start_y = max(start_y, 360)
+
+        # нижняя граница текста — над футером (футер на H-76), оставляем зазор
+        footer_top = H - 130
+        body_gap = 24
+        body_lh = 52
+
+        # заранее раскладываем body на реальные визуальные строки (с учётом переноса)
+        bf = self._reg(38)
+        body_wrapped = []
+        if body_lines:
+            for bl in body_lines[:2]:
+                body_wrapped.extend(self._wrap(draw, bl, bf, max_w))
+        # ограничиваем body максимум 3 строками, чтобы точно влез над футером
+        body_wrapped = body_wrapped[:3]
+        body_block = (len(body_wrapped) * body_lh + body_gap) if body_wrapped else 0
+
+        # ставим весь блок так, чтобы его НИЗ упирался в footer_top
+        block_h = len(lines) * line_h + body_block
+        start_y = footer_top - block_h
+        start_y = max(start_y, 320)
 
         y = start_y
         for line in lines:
@@ -1855,14 +1872,11 @@ class CarouselGenerator:
                 draw.text((PAD, y), line, font=font, fill=white)
             y += line_h
 
-        if body_lines:
-            y += 24
-            bf = self._reg(38)
-            max_w = W - PAD * 2
-            for bl in body_lines[:2]:
-                for wrapped in self._wrap(draw, bl, bf, max_w):
-                    draw.text((PAD, y), wrapped, font=bf, fill=light)
-                    y += 52
+        if body_wrapped:
+            y += body_gap
+            for wrapped in body_wrapped:
+                draw.text((PAD, y), wrapped, font=bf, fill=light)
+                y += body_lh
 
         # футер
         cf = self._med(25)
