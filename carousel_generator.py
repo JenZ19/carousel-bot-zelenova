@@ -1872,6 +1872,61 @@ class CarouselGenerator:
         self._draw_tracked(draw, (W - PAD - cw, H - 76), cta, cf, light, 3)
         return True
 
+    # ── финальный CTA-слайд ────────────────────────────────────────────────────
+
+    def generate_cta_slide(self, cta_text, theme, username, slide_num, total):
+        """Всегда горячий розовый. Playfair Italic по центру. 'СОХРАНИ ♡' внизу."""
+        t = THEMES["hot"]  # всегда hot независимо от выбранной темы
+        bg = hex_to_rgb(t["bg"])
+        img = Image.new("RGB", (W, H), bg)
+
+        # свечение — акцентный угол меняется в зависимости от номера
+        self._dec_glow(img, hex_to_rgb(t["accent"]), slide_num)
+
+        draw = ImageDraw.Draw(img)
+        main = hex_to_rgb(t["text"])          # белый
+        dim = hex_to_rgb(t["text_dim"])       # нежно-розовый
+
+        # шапка
+        self._draw_top_bar(draw, "hot", username, "СОХРАНИ")
+
+        # CTA текст — Playfair Italic, большой, по центру
+        font_size = 96
+        font = self._playfair_italic(font_size)
+        max_w = W - PAD * 2
+        lines = self._wrap(draw, cta_text, font, max_w)
+        line_h = int(font_size * 1.22)
+        text_block_h = len(lines) * line_h
+
+        # вертикальный центр между шапкой (130px) и подвалом (130px)
+        usable_start = 130
+        usable_end = H - 130
+        center_y = (usable_start + usable_end) // 2
+        y = center_y - text_block_h // 2
+
+        for line in lines:
+            lw = self._tw(draw, line, font)
+            draw.text((PAD + (max_w - lw) // 2, y), line, font=font, fill=main)
+            y += line_h
+
+        # тонкая белая черта — разделитель
+        div_y = y + 36
+        accent_col = hex_to_rgb(t["card_border"])
+        draw.rectangle([PAD + 80, div_y, W - PAD - 80, div_y + 2], fill=accent_col)
+
+        # username под чертой — мелкие капсы с разрядкой
+        user_font = self._med(26)
+        uw = self._tracked_w(draw, username.upper(), user_font, 4)
+        ux = PAD + (max_w - uw) // 2
+        self._draw_tracked(draw, (ux, div_y + 22), username.upper(), user_font, dim, 4)
+
+        # подвал
+        self._draw_bottom_bar(draw, "hot", slide_num, total, is_last=True, username=username)
+
+        tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        img.save(tmp.name, "PNG")
+        return tmp.name
+
     # ── кликбейтная обложка для Reels/Shorts (9:16) ────────────────────────────
 
     def _cover_photo_bg(self, img, photo_path, CW, CH):

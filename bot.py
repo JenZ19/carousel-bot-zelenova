@@ -42,6 +42,7 @@ STEP_IDLE = "idle"
 STEP_MODE = "await_mode"
 STEP_TEXT = "await_text"
 STEP_PHOTO = "await_photo"
+STEP_CTA = "await_cta"
 STEP_THEME = "await_theme"
 STEP_DONE = "done"
 
@@ -56,6 +57,7 @@ def get_session(user_id: int) -> dict:
             "photos": [],   # [{path}]  — режим бот выбирает сам
             "theme": "fuchsia",
             "username": "@zelenova_marketing",
+            "cta_text": "Сохрани, чтобы не потерять",
         }
     return sessions[user_id]
 
@@ -74,6 +76,19 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
     resize_keyboard=True,
     input_field_placeholder="Нажми Старт или /start",
 )
+
+
+def cta_keyboard():
+    presets = [
+        ("💾 Сохрани, чтобы не потерять", "Сохрани, чтобы не потерять"),
+        ("👯 Поделись с подругой", "Поделись с подругой"),
+        ("💌 Напиши мне в директ", "Напиши мне в директ"),
+        ("🙋 Пиши — разберём твою ситуацию", "Пиши — разберём твою ситуацию"),
+    ]
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton(label, callback_data=f"cta:{val}")] for label, val in presets]
+        + [[InlineKeyboardButton("✏️ Свой вариант", callback_data="cta:__custom__")]]
+    )
 
 
 def mode_keyboard():
@@ -174,7 +189,7 @@ STRUCTURE_PROMPT = """Ты — ВЁРСТЩИК Instagram-каруселей. Т
 - 4–10 слайдов; текста много → делай больше слайдов И/ИЛИ больше строк на слайде. Не теряй ничего.
 - body_lines = ДОСЛОВНЫЕ предложения автора, разбитые по строкам (одно предложение = одна строка)
 - title — короткий заголовок слайда (3–7 слов). Заголовки ты ПРИДУМЫВАЕШЬ сам — это НЕ нарушает правило сохранения текста, ведь весь текст автора всё равно целиком идёт в body_lines. Заголовок только подписывает кусок.
-- Последний слайд — финальная мысль/вывод автора (+ можно cta_pill)
+- Последний слайд — финальная мысль/вывод автора. НЕ делай отдельный призыв к действию/CTA — он будет добавлен автоматически отдельным слайдом.
 
 🎣 ЗАГОЛОВОК 1-ГО СЛАЙДА — ЭТО ХУК (самое важное в карусели!):
 Первый заголовок решает, остановится человек или пролистает. Сделай его ВИРУСНЫМ, цепляющим и ТОЧНО ПО ТЕМЕ поста (он должен отражать суть именно этого текста, а не быть общим).
@@ -336,6 +351,17 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await cmd_start(update, context)
         return
 
+    # пользователь вводит свой призыв к действию
+    if s["step"] == STEP_CTA:
+        s["cta_text"] = update.message.text.strip()
+        s["step"] = STEP_THEME
+        await update.message.reply_text(
+            f"Призыв записан: «{s['cta_text']}» ✓\n\n"
+            "Выбери тему 🎨",
+            reply_markup=theme_keyboard(s["theme"]),
+        )
+        return
+
     if s["step"] in (STEP_IDLE, STEP_DONE, STEP_MODE):
         reset_session(s)
 
@@ -450,12 +476,16 @@ async def _run_make(uid: int, reply_func, edit_func):
             if raw.startswith("json"):
                 raw = raw[4:]
         slides = json.loads(raw)
+        # CTA-слайд всегда добавляем в конец сами — обновляем total у всех слайдов
+        total_with_cta = len(slides) + 1
+        for sl in slides:
+            sl["total_slides"] = total_with_cta
     except Exception as e:
         logger.error(f"OpenAI error: {e}")
         await edit_func(msg, f"Ошибка: {e}")
         return
 
-    await edit_func(msg, f"Генерирую {len(slides)} слайдов…")
+    await edit_func(msg, f"Генерирую {len(slides) + 1} слайдов…")
 
     # 1-е фото → фон обложки; остальные → на слайды по смыслу (wants_photo), иначе по порядку
     photos = [p["path"] for p in s["photos"]]
@@ -486,6 +516,16 @@ async def _run_make(uid: int, reply_func, edit_func):
                 photo_mode=photo_mode,
             )
             slide_files.append(path)
+
+        # финальный CTA-слайд
+        cta_path = generator.generate_cta_slide(
+            cta_text=s.get("cta_text", "Сохрани, чтобы не потерять"),
+            theme=s["theme"],
+            username=s["username"],
+            slide_num=total_with_cta,
+            total=total_with_cta,
+        )
+        slide_files.append(cta_path)
 
         await edit_func(msg, f"Готово! Отправляю {len(slide_files)} слайдов…")
 
@@ -726,13 +766,35 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "wiz:skip_photo" or data == "wiz:to_theme":
-        s["step"] = STEP_THEME
-        tail = "соберу обложку" if s.get("mode") == "reels" else "соберу карусель"
-        await query.edit_message_text(
-            "Шаг 3 из 3 — выбери тему 🎨\n"
-            f"После выбора сразу {tail}.",
-            reply_markup=theme_keyboard(s["theme"]),
-        )
+        if s.get("mode") == "carousel":
+            s["step"] = STEP_CTA
+            await query.edit_message_text(
+                "Шаг 3 из 4 — призыв к действию\n\n"
+                "Что скажем на последнем слайде?",
+                reply_markup=cta_keyboard(),
+            )
+        else:
+            s["step"] = STEP_THEME
+            await query.edit_message_text(
+                "Шаг 3 из 3 — выбери тему 🎨\n"
+                "После выбора сразу соберу обложку.",
+                reply_markup=theme_keyboard(s["theme"]),
+            )
+        return
+
+    if data.startswith("cta:"):
+        val = data[4:]
+        if val == "__custom__":
+            s["step"] = STEP_CTA
+            await query.edit_message_text("Напиши свой призыв к действию — одна короткая фраза:")
+        else:
+            s["cta_text"] = val
+            s["step"] = STEP_THEME
+            await query.edit_message_text(
+                f"Призыв: «{val}» ✓\n\n"
+                "Шаг 4 из 4 — выбери тему 🎨",
+                reply_markup=theme_keyboard(s["theme"]),
+            )
         return
 
     if data == "wiz:restart":
