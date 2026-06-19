@@ -8,95 +8,95 @@ from pathlib import Path
 FONTS_DIR = Path(__file__).parent / "fonts"
 
 THEMES = {
-    # ── 1. Fuchsia — кремовый фон + ярко-розовый акцент (основная) ──
+    # ── 1. Fuchsia — нежный блаш + горячий розовый акцент (основная, как в референсе) ──
     "fuchsia": {
-        "bg": "#FFF0F5",
+        "bg": "#FBD5E8",
         "text": "#2D0A1E",
-        "text_dim": "#C075A0",
-        "accent": "#D4006E",
-        "card_bg": "#FFE4EF",
-        "card_border": "#F5C8DF",
+        "text_dim": "#B06090",
+        "accent": "#E8187A",
+        "card_bg": "#F5C0DA",
+        "card_border": "#ECA8CA",
         "grid": "#000000",
         "grid_alpha": 0,
-        "badge_bg": "#D4006E",
-        "badge_text": "#FFF0F5",
+        "badge_bg": "#E8187A",
+        "badge_text": "#FFFFFF",
         "badge_style": "square",
-        "label_color": "#C075A0",
-        "strikethrough_color": "#E8A8C8",
-        "tag_crit_bg": "#D4006E",
-        "tag_fixed_bg": "#7A4A8A",
+        "label_color": "#B06090",
+        "strikethrough_color": "#DDA0C0",
+        "tag_crit_bg": "#E8187A",
+        "tag_fixed_bg": "#7A4A7A",
     },
-    # ── 2. Hot — насыщенный фуксия-фон + кремовый текст ──
+    # ── 2. Hot — горячий розовый фон + белый текст (акцентный слайд) ──
     "hot": {
-        "bg": "#E0187A",
-        "text": "#FFF0F5",
-        "text_dim": "#FFAAD4",
-        "accent": "#FFF0F5",
-        "card_bg": "#C8006A",
-        "card_border": "#B0005A",
+        "bg": "#E8187A",
+        "text": "#FFFFFF",
+        "text_dim": "#FFB8D8",
+        "accent": "#FFFFFF",
+        "card_bg": "#D01068",
+        "card_border": "#B80858",
         "grid": "#FFFFFF",
-        "grid_alpha": 8,
-        "badge_bg": "#FFF0F5",
-        "badge_text": "#D4006E",
+        "grid_alpha": 6,
+        "badge_bg": "#FFFFFF",
+        "badge_text": "#E8187A",
         "badge_style": "square",
-        "label_color": "#FFAAD4",
-        "strikethrough_color": "#F070B0",
-        "tag_crit_bg": "#FFF0F5",
+        "label_color": "#FFB8D8",
+        "strikethrough_color": "#F080B0",
+        "tag_crit_bg": "#FFFFFF",
         "tag_fixed_bg": "#904870",
     },
-    # ── 3. Blush — нежно-розовый + малиновый ──
+    # ── 3. Blush — кремово-белый + горячий розовый, минималистик ──
     "blush": {
-        "bg": "#FFE8F2",
-        "text": "#3A001E",
-        "text_dim": "#B87898",
-        "accent": "#C0005C",
-        "card_bg": "#FFD8EA",
-        "card_border": "#F5C0DA",
-        "grid": "#000000",
-        "grid_alpha": 0,
-        "badge_bg": "#3A001E",
-        "badge_text": "#FFE8F2",
-        "badge_style": "circle",
-        "label_color": "#B87898",
-        "strikethrough_color": "#E0A8C0",
-        "tag_crit_bg": "#C0005C",
-        "tag_fixed_bg": "#704870",
-    },
-    # ── 4. Pearl — почти белый + малиновый, минималистик ──
-    "pearl": {
-        "bg": "#FFF8FB",
+        "bg": "#FFF5F8",
         "text": "#2D0A1E",
-        "text_dim": "#C890B0",
-        "accent": "#B8004A",
-        "card_bg": "#FFF0F5",
-        "card_border": "#F8D8E8",
+        "text_dim": "#C080A0",
+        "accent": "#E8187A",
+        "card_bg": "#FFE8F2",
+        "card_border": "#F5D0E4",
         "grid": "#000000",
         "grid_alpha": 0,
         "badge_bg": "#2D0A1E",
-        "badge_text": "#FFF8FB",
-        "badge_style": "square",
-        "label_color": "#C890B0",
-        "strikethrough_color": "#E8B8D0",
-        "tag_crit_bg": "#B8004A",
-        "tag_fixed_bg": "#7A5080",
+        "badge_text": "#FFF5F8",
+        "badge_style": "circle",
+        "label_color": "#C080A0",
+        "strikethrough_color": "#E8B0CC",
+        "tag_crit_bg": "#E8187A",
+        "tag_fixed_bg": "#7A4A7A",
     },
-    # ── 5. Plum — тёмно-малиновый + розовый акцент ──
+    # ── 4. Pearl — чисто белый + малиновый, самый лёгкий ──
+    "pearl": {
+        "bg": "#FFFFFF",
+        "text": "#2D0A1E",
+        "text_dim": "#C898B0",
+        "accent": "#C8006A",
+        "card_bg": "#FFF0F5",
+        "card_border": "#F5D8E8",
+        "grid": "#000000",
+        "grid_alpha": 0,
+        "badge_bg": "#2D0A1E",
+        "badge_text": "#FFFFFF",
+        "badge_style": "square",
+        "label_color": "#C898B0",
+        "strikethrough_color": "#E8C0D4",
+        "tag_crit_bg": "#C8006A",
+        "tag_fixed_bg": "#7A4878",
+    },
+    # ── 5. Plum — тёмно-сливовый фон + розовый неон ──
     "plum": {
         "bg": "#2D0A1E",
-        "text": "#FFF0F5",
-        "text_dim": "#C075A0",
-        "accent": "#FF6BB5",
+        "text": "#FFE8F2",
+        "text_dim": "#C070A0",
+        "accent": "#FF5BAA",
         "card_bg": "#3D1228",
-        "card_border": "#521A38",
+        "card_border": "#541A38",
         "grid": "#FFFFFF",
-        "grid_alpha": 6,
-        "badge_bg": "#FF6BB5",
+        "grid_alpha": 5,
+        "badge_bg": "#FF5BAA",
         "badge_text": "#2D0A1E",
         "badge_style": "square",
-        "label_color": "#C075A0",
+        "label_color": "#C070A0",
         "strikethrough_color": "#7A3050",
-        "tag_crit_bg": "#FF6BB5",
-        "tag_fixed_bg": "#6A3880",
+        "tag_crit_bg": "#FF5BAA",
+        "tag_fixed_bg": "#6A3878",
     },
 }
 
@@ -204,6 +204,26 @@ class CarouselGenerator:
     def _bold(self, size): return self._font("Inter-Bold", size)
     def _reg(self, size): return self._font("Inter-Regular", size)
     def _med(self, size): return self._font("Inter-Medium", size)
+
+    def _playfair(self, size):
+        """Playfair Display — serif для редакционных заголовков."""
+        key = ("PlayfairDisplay", size)
+        if key not in self._font_cache:
+            try:
+                self._font_cache[key] = ImageFont.truetype(str(FONTS_DIR / "PlayfairDisplay.ttf"), size)
+            except Exception:
+                self._font_cache[key] = self._bold(size)
+        return self._font_cache[key]
+
+    def _playfair_italic(self, size):
+        """Playfair Display Italic — главный голос заголовков зеленова-стайл."""
+        key = ("PlayfairDisplay-Italic", size)
+        if key not in self._font_cache:
+            try:
+                self._font_cache[key] = ImageFont.truetype(str(FONTS_DIR / "PlayfairDisplay-Italic.ttf"), size)
+            except Exception:
+                self._font_cache[key] = self._bold(size)
+        return self._font_cache[key]
 
     def _oswald(self, size, weight="Bold"):
         """Узкая дисплейная гарнитура для крупных акцентов (пара к Inter)."""
@@ -360,41 +380,39 @@ class CarouselGenerator:
     def _draw_top_bar(self, draw, theme, username, topic, right_label=""):
         t = THEMES[theme]
         dim = hex_to_rgb(t["text_dim"])
-        main = hex_to_rgb(t["text"])
         border = hex_to_rgb(t["card_border"])
 
-        # username 28px, topic 20px — разница 40% → ощутимый иерархический сигнал (был 27/23 = 14%)
-        name_font = self._med(28)
-        draw.text((PAD, 58), username, font=name_font, fill=main)
+        # мелкие капсы — лёгкие и воздушные, как в референсе
+        lbl_font = self._med(22)
+        user_text = username.upper()
+        self._draw_tracked(draw, (PAD, 58), user_text, lbl_font, dim, 3)
 
-        # справа — разрядка капсом (подтема или topic)
         right_text = (right_label or topic or "").upper()
         if right_text:
-            lbl_font = self._med(20)
-            name_w = self._tw(draw, username, name_font)
             rw = self._tracked_w(draw, right_text, lbl_font, 3)
-            while rw > (W - PAD * 2 - name_w - 40) and len(right_text) > 3:
+            # обрезаем если не влезает
+            while rw > W - PAD * 2 - 200 and len(right_text) > 3:
                 right_text = right_text[:-1]
                 rw = self._tracked_w(draw, right_text, lbl_font, 3)
-            self._draw_tracked(draw, (W - PAD - rw, 62), right_text, lbl_font, dim, 3)
+            self._draw_tracked(draw, (W - PAD - rw, 58), right_text, lbl_font, dim, 3)
 
-        # хайрлайн-мастхед
-        draw.line([(PAD, 116), (W - PAD, 116)], fill=border, width=2)
+        draw.line([(PAD, 108), (W - PAD, 108)], fill=border, width=1)
 
-    def _draw_bottom_bar(self, draw, theme, slide_num, total, is_last=False):
+    def _draw_bottom_bar(self, draw, theme, slide_num, total, is_last=False, username=""):
         t = THEMES[theme]
         dim = hex_to_rgb(t["text_dim"])
         border = hex_to_rgb(t["card_border"])
-        font = self._med(25)
+        font = self._med(22)
 
-        draw.line([(PAD, H - 106), (W - PAD, H - 106)], fill=border, width=2)
+        draw.line([(PAD, H - 106), (W - PAD, H - 106)], fill=border, width=1)
 
-        counter = f"{slide_num:02d} / {total:02d}"
-        self._draw_tracked(draw, (PAD, H - 76), counter, font, dim, 2)
+        # username слева — капсом
+        left_text = username.upper() if username else f"{slide_num:02d} / {total:02d}"
+        self._draw_tracked(draw, (PAD, H - 74), left_text, font, dim, 3)
 
-        cta = "СОХРАНЯЙ →" if is_last else "ЛИСТАЙ →"
+        cta = "СОХРАНИ ♡" if is_last else "ЛИСТАЙ →"
         cw = self._tracked_w(draw, cta, font, 3)
-        self._draw_tracked(draw, (W - PAD - cw, H - 76), cta, font, dim, 3)
+        self._draw_tracked(draw, (W - PAD - cw, H - 74), cta, font, dim, 3)
 
     def _draw_badge(self, draw, theme, number, label, y):
         t = THEMES[theme]
@@ -431,8 +449,8 @@ class CarouselGenerator:
 
     def _draw_headline(self, draw, theme, title, accent_word, y, max_width, font_size=88, x=None, use_display=False):
         t = THEMES[theme]
-        # Oswald для обложки (слайд 1) даёт журнальный display-удар; Inter-Bold — для тела
-        font = self._oswald(font_size, "Bold") if use_display else self._bold(font_size)
+        # Playfair Italic — редакционный заголовок; для обложки крупнее
+        font = self._playfair_italic(font_size) if use_display else self._playfair_italic(font_size)
         main = hex_to_rgb(t["text"])
         accent = hex_to_rgb(t["accent"])
         if x is None:
@@ -1360,7 +1378,7 @@ class CarouselGenerator:
                 visual_data.get("bullet_items", body_lines),
                 310
             )
-            self._draw_bottom_bar(draw, theme, slide_num, total, slide_num == total)
+            self._draw_bottom_bar(draw, theme, slide_num, total, slide_num == total, username)
             tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
             img.save(tmp.name, "PNG")
             return tmp.name
@@ -1456,7 +1474,7 @@ class CarouselGenerator:
         if cta_pill:
             self._draw_cta_pill(draw, theme, cta_pill, y + 8)
 
-        self._draw_bottom_bar(draw, theme, slide_num, total, slide_num == total)
+        self._draw_bottom_bar(draw, theme, slide_num, total, slide_num == total, username)
 
         tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
         img.save(tmp.name, "PNG")
