@@ -1335,8 +1335,28 @@ class CarouselGenerator:
 
     # ── main ──────────────────────────────────────────────────────────────────
 
+    def _resolve_slide_theme(self, base_theme, slide_style):
+        """Возвращает эффективный словарь цветов для слайда в зависимости от slide_style."""
+        t = THEMES.get(base_theme, THEMES["fuchsia"])
+        if slide_style == "accent":
+            # горячий розовый — всегда независимо от выбранной темы
+            return THEMES.get("hot", t)
+        if slide_style == "minimal":
+            # белый/жемчужный фон
+            return THEMES.get("pearl", t)
+        # editorial и всё остальное — базовая тема
+        return t
+
     def generate_slide(self, slide_data, theme="fuchsia", username="@username", photo_path=None, photo_mode=None):
-        t = THEMES.get(theme, THEMES["fuchsia"])
+        slide_style = slide_data.get("slide_style", "editorial")
+        # effective_theme — строковый ключ темы с учётом стиля слайда
+        if slide_style == "accent":
+            effective_theme = "hot"
+        elif slide_style == "minimal":
+            effective_theme = "pearl"
+        else:
+            effective_theme = theme
+        t = THEMES.get(effective_theme, THEMES["fuchsia"])
         bg = hex_to_rgb(t["bg"])
 
         img = Image.new("RGB", (W, H), bg)
@@ -1344,10 +1364,19 @@ class CarouselGenerator:
         slide_num = slide_data.get("slide_number", 1)
         total = slide_data.get("total_slides", 1)
 
-        # фоновое украшение (своё на каждом слайде для разнообразия); фото — без декора
+        # декорации: accent — мягкое свечение; minimal — без декора; editorial — по ротации
         if not photo_path:
-            deco = slide_data.get("bg") or self._pick_decoration(slide_num)
-            self._draw_decoration(img, theme, deco, slide_num)
+            if slide_style == "accent":
+                deco = "glow"
+                deco_theme = "hot"
+            elif slide_style == "minimal":
+                deco = None
+                deco_theme = theme
+            else:
+                deco = slide_data.get("bg") or self._pick_decoration(slide_num)
+                deco_theme = theme
+            if deco:
+                self._draw_decoration(img, deco_theme, deco, slide_num)
 
         draw = ImageDraw.Draw(img)
         label = sanitize_text(slide_data.get("label", ""))
@@ -1370,24 +1399,23 @@ class CarouselGenerator:
                 tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
                 img.save(tmp.name, "PNG")
                 return tmp.name
-            # фото мелкое — рисуем обычную обложку (фон уже залит темой), добавим свечение
             photo_path = None
-            self._draw_decoration(img, theme, "glow", slide_num)
+            self._draw_decoration(img, effective_theme, "glow", slide_num)
             draw = ImageDraw.Draw(img)
 
-        self._draw_top_bar(draw, theme, username, topic, right_label)
+        self._draw_top_bar(draw, effective_theme, username, topic, right_label)
 
         # photo+text is a full-layout override
         if visual_type == "photo_text" and photo_path:
-            self._draw_badge(draw, theme, slide_num, label, 220)
+            self._draw_badge(draw, effective_theme, slide_num, label, 220)
             self._draw_photo_text_layout(
-                img, draw, theme, photo_path,
+                img, draw, effective_theme, photo_path,
                 visual_data.get("photo_label", label),
                 title, accent_word,
                 visual_data.get("bullet_items", body_lines),
                 310
             )
-            self._draw_bottom_bar(draw, theme, slide_num, total, slide_num == total, username)
+            self._draw_bottom_bar(draw, effective_theme, slide_num, total, slide_num == total, username)
             tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
             img.save(tmp.name, "PNG")
             return tmp.name
@@ -1397,59 +1425,59 @@ class CarouselGenerator:
 
         y = 168
         if label or slide_num:
-            self._draw_badge(draw, theme, slide_num, label, y)
+            self._draw_badge(draw, effective_theme, slide_num, label, y)
             y += 92
 
-        # обложка — крупнее и воздушнее; текстовые слайды без визуала тоже крупнее
-        if is_cover:
+        # размер заголовка: minimal — огромный; обложка — крупная; остальные стандарт
+        if slide_style == "minimal":
+            headline_size = 120
+        elif is_cover:
             headline_size = 104
         elif has_visual:
             headline_size = 78
         else:
             headline_size = 88
-        y = self._draw_headline(draw, theme, title, accent_word, y, W - PAD * 2, font_size=headline_size, use_display=is_cover)
+
+        y = self._draw_headline(draw, effective_theme, title, accent_word, y, W - PAD * 2, font_size=headline_size, use_display=True)
         y += 20
 
-        # акцентная черта под заголовком на слайдах с визуалом — журнальный приём
         if has_visual and title:
-            y = self._draw_divider(draw, theme, y) + 30
+            y = self._draw_divider(draw, effective_theme, y) + 30
         else:
             y += 14
 
-        if body_lines:
-            # подгоняем шрифт; на слайде с фото текст занимает только верхнюю часть
+        if body_lines and slide_style != "minimal":
             if photo_path:
                 body_max_y = int(H * 0.50)
             elif has_visual:
                 body_max_y = None
             else:
                 body_max_y = H - 130
-            y = self._draw_body(draw, theme, body_lines, y, max_y=body_max_y)
+            y = self._draw_body(draw, effective_theme, body_lines, y, max_y=body_max_y)
             y += 24
 
-        # фото — аккуратным блоком, БЕЗ растягивания и потери качества
         if photo_path:
-            self._draw_photo_block(img, theme, photo_path, y + 8, H - 130)
+            self._draw_photo_block(img, effective_theme, photo_path, y + 8, H - 130)
             draw = ImageDraw.Draw(img)
-            visual_type = "none"  # на слайде с фото визуалы не рисуем
+            visual_type = "none"
 
         if visual_type == "table" and visual_data.get("rows"):
-            y = self._draw_table(draw, theme, visual_data["rows"], y)
+            y = self._draw_table(draw, effective_theme, visual_data["rows"], y)
         elif visual_type == "cards" and visual_data.get("cards"):
-            y = self._draw_cards_2x2(draw, theme, visual_data["cards"], y)
+            y = self._draw_cards_2x2(draw, effective_theme, visual_data["cards"], y)
         elif visual_type == "comparison" and visual_data.get("left"):
-            y = self._draw_comparison(draw, theme, visual_data["left"], visual_data["right"], y)
+            y = self._draw_comparison(draw, effective_theme, visual_data["left"], visual_data["right"], y)
         elif visual_type == "terminal" and visual_data.get("lines"):
-            y = self._draw_terminal(draw, theme, visual_data.get("title", ""), visual_data["lines"], y)
+            y = self._draw_terminal(draw, effective_theme, visual_data.get("title", ""), visual_data["lines"], y)
         elif visual_type == "checklist" and visual_data.get("items"):
-            y = self._draw_checklist(draw, theme, visual_data.get("title", ""), visual_data["items"], y)
+            y = self._draw_checklist(draw, effective_theme, visual_data.get("title", ""), visual_data["items"], y)
         elif visual_type == "numbered_list" and visual_data.get("items"):
-            y = self._draw_numbered_list(draw, theme, visual_data["items"], y)
+            y = self._draw_numbered_list(draw, effective_theme, visual_data["items"], y)
         elif visual_type == "bullet_list" and visual_data.get("items"):
-            y = self._draw_bullet_list(draw, theme, visual_data["items"], y, visual_data.get("bullet_color"))
+            y = self._draw_bullet_list(draw, effective_theme, visual_data["items"], y, visual_data.get("bullet_color"))
         elif visual_type == "progress_bar":
             y = self._draw_progress_bar(
-                draw, theme,
+                draw, effective_theme,
                 visual_data.get("label_before", "было"),
                 visual_data.get("value_before", ""),
                 visual_data.get("label_after", "стало"),
@@ -1457,33 +1485,33 @@ class CarouselGenerator:
                 y
             )
         elif visual_type == "file_tree" and visual_data.get("rows"):
-            y = self._draw_file_tree(draw, theme,
+            y = self._draw_file_tree(draw, effective_theme,
                 visual_data.get("header", ""),
                 visual_data.get("badge", ""),
                 visual_data["rows"], y)
         elif visual_type == "big_stat" and visual_data.get("stats"):
-            y = self._draw_big_stat(draw, theme, visual_data["stats"], y)
+            y = self._draw_big_stat(draw, effective_theme, visual_data["stats"], y)
         elif visual_type == "quote":
-            y = self._draw_quote(draw, theme,
+            y = self._draw_quote(draw, effective_theme,
                 visual_data.get("text", ""),
                 visual_data.get("author", ""), y)
         elif visual_type == "number" and visual_data.get("big_number"):
-            y = self._draw_hero_number(draw, theme,
+            y = self._draw_hero_number(draw, effective_theme,
                 visual_data.get("big_number", ""),
                 visual_data.get("caption", ""), y)
         elif visual_type == "timeline" and visual_data.get("steps"):
-            y = self._draw_timeline(draw, theme, visual_data["steps"], y)
+            y = self._draw_timeline(draw, effective_theme, visual_data["steps"], y)
         elif visual_type == "two_col":
-            y = self._draw_two_col(draw, theme,
+            y = self._draw_two_col(draw, effective_theme,
                 visual_data.get("left_title", ""),
                 visual_data.get("left_items", []),
                 visual_data.get("right_title", ""),
                 visual_data.get("right_items", []), y)
 
         if cta_pill:
-            self._draw_cta_pill(draw, theme, cta_pill, y + 8)
+            self._draw_cta_pill(draw, effective_theme, cta_pill, y + 8)
 
-        self._draw_bottom_bar(draw, theme, slide_num, total, slide_num == total, username)
+        self._draw_bottom_bar(draw, effective_theme, slide_num, total, slide_num == total, username)
 
         tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
         img.save(tmp.name, "PNG")
