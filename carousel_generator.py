@@ -713,10 +713,21 @@ class CarouselGenerator:
 
         dot_colors = [(255, 95, 87), (255, 189, 46), (40, 200, 64)]
         cp = 28
-        row_h = 72
+        cr = 18
+        line_h = 42
         header_h = 60
-        card_h = header_h + len(items) * row_h + cp
         card_w = W - PAD * 2
+        text_x = PAD + cp + cr * 2 + 20
+        text_max_w = card_w - cp - cr * 2 - 20 - cp  # учитываем отступы слева и справа
+
+        # предварительно считаем высоту каждого пункта с учётом переноса
+        item_wrapped = []
+        for item in items:
+            wlines = self._wrap(draw, item.get("text", ""), item_font, text_max_w)
+            item_wrapped.append(wlines)
+
+        row_heights = [max(line_h * len(wl), line_h) + 24 for wl in item_wrapped]
+        card_h = header_h + sum(row_heights) + cp
         r = 16
 
         draw.rounded_rectangle([PAD, y, PAD + card_w, y + card_h], radius=r, fill=card_bg, outline=card_border, width=1)
@@ -727,32 +738,30 @@ class CarouselGenerator:
         draw.text((tx, y + 16), title, font=title_font, fill=dim)
 
         iy = y + header_h
-        for item in items:
+        for idx, item in enumerate(items):
             text = item.get("text", "")
             done = item.get("done", False)
             tag = item.get("tag", "")
             tag_col_hex = item.get("tag_color", "#E53E3E")
+            wlines = item_wrapped[idx]
+            rh = row_heights[idx]
 
-            # circle checkbox
-            cr = 18
-            ccx, ccy = PAD + cp + cr, iy + row_h // 2
+            # circle checkbox — по центру высоты пункта
+            ccx, ccy = PAD + cp + cr, iy + rh // 2
             if done:
                 draw.ellipse([ccx - cr, ccy - cr, ccx + cr, ccy + cr], fill=accent)
-                # checkmark
                 draw.text((ccx - 9, ccy - 12), "✓", font=self._bold(26), fill=(255, 255, 255))
             else:
                 draw.ellipse([ccx - cr, ccy - cr, ccx + cr, ccy + cr], outline=dim, width=2)
 
-            tx = PAD + cp + cr * 2 + 20
             text_color = strike_color if done else main
-
-            if done:
-                draw.text((tx, iy + (row_h - 34) // 2), text, font=item_font, fill=text_color)
-                tw = self._tw(draw, text, item_font)
-                mid_y = iy + (row_h - 34) // 2 + 17
-                draw.line([(tx, mid_y), (tx + tw, mid_y)], fill=strike_color, width=2)
-            else:
-                draw.text((tx, iy + (row_h - 34) // 2), text, font=item_font, fill=text_color)
+            ty = iy + (rh - line_h * len(wlines)) // 2
+            for wl in wlines:
+                draw.text((text_x, ty), wl, font=item_font, fill=text_color)
+                if done:
+                    tw = self._tw(draw, wl, item_font)
+                    draw.line([(text_x, ty + 17), (text_x + tw, ty + 17)], fill=strike_color, width=2)
+                ty += line_h
 
             if tag:
                 tag_bg = hex_to_rgb(tag_col_hex)
@@ -762,7 +771,7 @@ class CarouselGenerator:
                 tag_w = tw_tag + tag_pad * 2
                 tag_h = 40
                 tag_x = PAD + card_w - cp - tag_w
-                tag_y = iy + (row_h - tag_h) // 2
+                tag_y = iy + (rh - tag_h) // 2
                 draw.rounded_rectangle([tag_x, tag_y, tag_x + tag_w, tag_y + tag_h], radius=8, fill=tag_bg)
                 draw.text((tag_x + tag_pad, tag_y + 8), tag_text, font=tag_font, fill=(255, 255, 255))
 
