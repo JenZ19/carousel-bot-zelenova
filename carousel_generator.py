@@ -776,9 +776,9 @@ class CarouselGenerator:
                 draw.text((tag_x + tag_pad, tag_y + 8), tag_text, font=tag_font, fill=(255, 255, 255))
 
             if items.index(item) < len(items) - 1:
-                draw.line([(PAD + cp, iy + row_h - 1), (PAD + card_w - cp, iy + row_h - 1)], fill=card_border, width=1)
+                draw.line([(PAD + cp, iy + rh - 1), (PAD + card_w - cp, iy + rh - 1)], fill=card_border, width=1)
 
-            iy += row_h
+            iy += rh
 
         return y + card_h + 32
 
