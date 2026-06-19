@@ -225,6 +225,11 @@ visual_type варианты (НЕ используй photo_text — фото д
 • "quote" — visual_data: {{"text": "цитата", "author": null}}
 • "timeline" — visual_data: {{"steps": [{{"number": 1, "title": "Шаг", "text": "пояснение"}}]}}
 • "two_col" — visual_data: {{"left_title": "БЫЛО", "left_items": ["..."], "right_title": "СТАЛО", "right_items": ["..."]}}
+• "pull_quote" — редакционная цитата Playfair Italic с большим декоративным знаком. visual_data: {{"text": "цитата дословно", "author": "автор или null"}}. Отличается от quote: крупная, по центру, без вертикальной черты слева. Идеально для ключевой мысли или отзыва.
+• "stat_grid" — 2×2 бенто-сетка больших цифр (Playfair Display). visual_data: {{"stats": [{{"number": "87%", "label": "клиентов возвращаются", "trend": "+12%"}}]}}. До 4 статистик. trend опционален (+ зелёный, - dim).
+• "highlight_card" — крупная акцентная карточка-удар на весь слайд. visual_data: {{"heading": "Заголовок Playfair Italic", "subtext": "пояснение"}}. Для ключевой мысли, вывода, финального послания. slide_style="editorial" → карточка будет ярко-розовой; slide_style="accent" → карточка светлая.
+• "steps_flow" — горизонтальные шаги со стрелками (схема "как это работает"). visual_data: {{"steps": [{{"number": "1", "title": "Шаг", "text": "пояснение"}}]}}. 3–4 шага. Для процессов, алгоритмов, роадмапов.
+• "magazine_split" — асимметричный разворот: 1/3 слева = большое слово/фраза Playfair, 2/3 справа = список. visual_data: {{"big_label": "5 шагов", "items": [{{"title": "Заголовок пункта", "text": "описание"}}]}}. Журнальный стиль. Максимум 4 пункта.
 
 🎨 СТИЛЬ СЛАЙДА (slide_style) — ОБЯЗАТЕЛЬНОЕ поле:
 • "accent" — яркий горячий розовый фон, белый текст. ОБЯЗАТЕЛЕН для: слайда 1 (всегда!), цитат (quote), больших цифр (number/big_stat), последнего слайда. Не более 30% слайдов.
@@ -234,7 +239,9 @@ visual_type варианты (НЕ используй photo_text — фото д
 Правила:
 - Слайд 1 → ВСЕГДА "accent"
 - Последний слайд → ВСЕГДА "accent"
-- quote, number, big_stat → "accent"
+- quote, pull_quote, number, big_stat → "accent"
+- highlight_card, stat_grid → "editorial" (карточка сама создаёт контраст)
+- steps_flow, magazine_split → "editorial" или "minimal"
 - Остальное: чередуй "editorial" и изредка "minimal", не ставь "editorial" 5+ раз подряд
 
 Дополнительно (опционально):

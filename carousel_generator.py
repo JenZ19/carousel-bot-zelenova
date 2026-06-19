@@ -1144,6 +1144,260 @@ class CarouselGenerator:
 
         return max(col_bottoms) + 24
 
+    # ── visual: pull_quote ────────────────────────────────────────────────────
+
+    def _draw_pull_quote(self, draw, theme, text, author, y):
+        """Редакционная цитата: декоративный знак + Playfair Italic + автор."""
+        t = THEMES[theme]
+        bg = hex_to_rgb(t["bg"])
+        accent = hex_to_rgb(t["accent"])
+        main = hex_to_rgb(t["text"])
+        dim = hex_to_rgb(t["text_dim"])
+
+        # декоративный знак кавычки — смешиваем акцент с фоном для эффекта водяного знака
+        a = 0.14
+        mark_col = tuple(int(bg[i] * (1 - a) + accent[i] * a) for i in range(3))
+        mark_font = self._playfair(280)
+        draw.text((PAD - 16, y - 40), "“", font=mark_font, fill=mark_col)
+
+        # тонкая вертикальная черта слева — журнальный приём
+        draw.rectangle([PAD, y + 24, PAD + 4, y + 24 + min(len(text.split()) * 18, 260)], fill=accent)
+
+        # цитата в Playfair Italic — сердце шаблона
+        quote_font = self._playfair_italic(58)
+        max_w = W - PAD * 2 - 40
+        wrapped = self._wrap(draw, text, quote_font, max_w)
+        line_h = int(58 * 1.32)
+        ty = y + 24
+        for line in wrapped:
+            draw.text((PAD + 40, ty), line, font=quote_font, fill=main)
+            ty += line_h
+
+        if author:
+            ty += 16
+            auth_font = self._med(30)
+            draw.text((PAD + 40, ty), f"— {author}", font=auth_font, fill=dim)
+            ty += 44
+
+        return ty + 24
+
+    # ── visual: stat_grid ─────────────────────────────────────────────────────
+
+    def _draw_stat_grid(self, draw, theme, stats, y):
+        """2×2 bento-сетка: большие цифры Playfair + метки Inter. 2 или 4 стата."""
+        t = THEMES[theme]
+        card_bg = hex_to_rgb(t["card_bg"])
+        card_border = hex_to_rgb(t["card_border"])
+        accent = hex_to_rgb(t["accent"])
+        main = hex_to_rgb(t["text"])
+        dim = hex_to_rgb(t["text_dim"])
+
+        count = min(len(stats), 4)
+        cols = 2
+        rows = math.ceil(count / cols)
+        gap = 20
+        card_w = (W - PAD * 2 - gap) // 2
+        card_h = 220
+        r = 20
+        num_font = self._playfair(84)
+        lbl_font = self._med(28)
+        trend_font = self._bold(26)
+
+        for i, stat in enumerate(stats[:count]):
+            col = i % cols
+            row = i // cols
+            cx = PAD + col * (card_w + gap)
+            cy = y + row * (card_h + gap)
+
+            draw.rounded_rectangle([cx, cy, cx + card_w, cy + card_h], radius=r, fill=card_bg, outline=card_border, width=1)
+
+            num = str(stat.get("number", ""))
+            lbl = str(stat.get("label", ""))
+            trend = str(stat.get("trend", ""))
+
+            nw = self._tw(draw, num, num_font)
+            nh = self._th(draw, num, num_font)
+            nx = cx + (card_w - nw) // 2
+            ny = cy + (card_h - nh) // 2 - 20
+            draw.text((nx, ny), num, font=num_font, fill=accent)
+
+            if lbl:
+                lw = self._tw(draw, lbl, lbl_font)
+                draw.text((cx + (card_w - lw) // 2, cy + card_h - 60), lbl, font=lbl_font, fill=dim)
+
+            if trend:
+                trend_col = accent if not trend.startswith("-") else dim
+                tw_val = self._tw(draw, trend, trend_font)
+                draw.text((cx + card_w - tw_val - 20, cy + 20), trend, font=trend_font, fill=trend_col)
+
+        return y + rows * (card_h + gap)
+
+    # ── visual: highlight_card ────────────────────────────────────────────────
+
+    def _draw_highlight_card(self, draw, theme, heading, subtext, y):
+        """Полноширинная акцентная карточка — визуальный удар для ключевой мысли."""
+        t = THEMES[theme]
+        accent = hex_to_rgb(t["accent"])
+        bg_col = hex_to_rgb(t["bg"])
+        card_bg = hex_to_rgb(t["card_bg"])
+
+        # если тема уже тёмная/яркая (hot/plum) — карточка светлая, иначе — акцентная
+        is_dark_theme = sum(hex_to_rgb(t["bg"])) < 400 or t["bg"] in ("#E8187A",)
+        box_fill = card_bg if is_dark_theme else accent
+        text_col = hex_to_rgb(t["text"]) if is_dark_theme else (255, 255, 255)
+        sub_col = hex_to_rgb(t["text_dim"]) if is_dark_theme else (255, 220, 238)
+
+        card_w = W - PAD * 2
+        h_font = self._playfair_italic(76)
+        s_font = self._reg(34)
+        max_w = card_w - 64
+
+        h_lines = self._wrap(draw, heading, h_font, max_w)
+        s_lines = self._wrap(draw, subtext, s_font, max_w) if subtext else []
+
+        line_h = int(76 * 1.22)
+        total_h = len(h_lines) * line_h + (len(s_lines) * 46 + 28 if s_lines else 0) + 80
+        card_h = max(total_h, 260)
+
+        draw.rounded_rectangle([PAD, y, PAD + card_w, y + card_h], radius=24, fill=box_fill)
+
+        ty = y + 40
+        for line in h_lines:
+            lw = self._tw(draw, line, h_font)
+            draw.text((PAD + (card_w - lw) // 2, ty), line, font=h_font, fill=text_col)
+            ty += line_h
+
+        if s_lines:
+            ty += 12
+            for line in s_lines:
+                lw = self._tw(draw, line, s_font)
+                draw.text((PAD + (card_w - lw) // 2, ty), line, font=s_font, fill=sub_col)
+                ty += 46
+
+        return y + card_h + 32
+
+    # ── visual: steps_flow ────────────────────────────────────────────────────
+
+    def _draw_steps_flow(self, draw, theme, steps, y):
+        """3-4 горизонтальных шага с соединяющими стрелками. Схема 'как это работает'."""
+        t = THEMES[theme]
+        accent = hex_to_rgb(t["accent"])
+        main = hex_to_rgb(t["text"])
+        dim = hex_to_rgb(t["text_dim"])
+        card_bg = hex_to_rgb(t["card_bg"])
+        badge_text = hex_to_rgb(t["badge_text"]) if "badge_text" in t else (255, 255, 255)
+
+        count = min(len(steps), 4)
+        gap = 20
+        card_w = (W - PAD * 2 - gap * (count - 1)) // count
+        num_font = self._bold(32)
+        title_font = self._bold(26)
+        body_font = self._reg(22)
+        dot_r = 36
+        card_h = 280
+
+        for i, step in enumerate(steps[:count]):
+            cx = PAD + i * (card_w + gap)
+            cy = y
+
+            draw.rounded_rectangle([cx, cy, cx + card_w, cy + card_h], radius=16, fill=card_bg, outline=hex_to_rgb(t["card_border"]), width=1)
+
+            # кружок с номером вверху карточки
+            circle_cx = cx + card_w // 2
+            circle_cy = cy + dot_r + 20
+            draw.ellipse([circle_cx - dot_r, circle_cy - dot_r, circle_cx + dot_r, circle_cy + dot_r], fill=accent)
+            num = str(step.get("number", i + 1))
+            nw = self._tw(draw, num, num_font)
+            nh = self._th(draw, num, num_font)
+            draw.text((circle_cx - nw // 2, circle_cy - nh // 2 - 2), num, font=num_font, fill=(255, 255, 255))
+
+            # заголовок под кружком
+            title = step.get("title", "")
+            title_lines = self._wrap(draw, title, title_font, card_w - 24)
+            ty = circle_cy + dot_r + 20
+            for tl in title_lines[:2]:
+                tw = self._tw(draw, tl, title_font)
+                draw.text((cx + (card_w - tw) // 2, ty), tl, font=title_font, fill=main)
+                ty += 36
+
+            # описание
+            text = step.get("text", "")
+            if text:
+                ty += 8
+                body_lines = self._wrap(draw, text, body_font, card_w - 24)
+                for bl in body_lines[:3]:
+                    bw = self._tw(draw, bl, body_font)
+                    draw.text((cx + (card_w - bw) // 2, ty), bl, font=body_font, fill=dim)
+                    ty += 30
+
+            # стрелка между шагами
+            if i < count - 1:
+                ax = cx + card_w + gap // 2
+                ay = cy + card_h // 2
+                aw = 14
+                draw.polygon([(ax - aw // 2, ay - aw), (ax + aw // 2, ay), (ax - aw // 2, ay + aw)], fill=accent)
+
+        return y + card_h + 32
+
+    # ── visual: magazine_split ────────────────────────────────────────────────
+
+    def _draw_magazine_split(self, draw, theme, big_label, items, y):
+        """Асимметричный разворот: 1/3 — большое слово/число, 2/3 — список."""
+        t = THEMES[theme]
+        accent = hex_to_rgb(t["accent"])
+        main = hex_to_rgb(t["text"])
+        dim = hex_to_rgb(t["text_dim"])
+        card_border = hex_to_rgb(t["card_border"])
+
+        divider_x = PAD + (W - PAD * 2) // 3 + 16
+        right_x = divider_x + 48
+        right_max_w = W - PAD - right_x
+
+        # вертикальная линия-разделитель — журнальный приём
+        total_h = max(len(items) * 130, 300)
+        draw.rectangle([divider_x, y, divider_x + 2, y + total_h], fill=accent)
+
+        # левая колонка: большое слово/число в Playfair Italic
+        left_font = self._playfair_italic(72)
+        left_col_w = divider_x - PAD - 20
+        left_lines = self._wrap(draw, big_label, left_font, left_col_w)
+        line_h_l = int(72 * 1.22)
+        block_h = len(left_lines) * line_h_l
+        ly = y + (total_h - block_h) // 2
+        for line in left_lines:
+            lw = self._tw(draw, line, left_font)
+            draw.text((PAD + (left_col_w - lw) // 2, ly), line, font=left_font, fill=accent)
+            ly += line_h_l
+
+        # правая колонка: список с заголовком + описание
+        title_font = self._bold(30)
+        body_font = self._reg(26)
+        dot_r = 6
+        ry = y + 8
+        for item in items:
+            title = item.get("title", "")
+            text = item.get("text", "")
+
+            # маркер
+            draw.ellipse([right_x, ry + 10, right_x + dot_r * 2, ry + 10 + dot_r * 2], fill=accent)
+            tx = right_x + dot_r * 2 + 16
+            tw_max = right_max_w - dot_r * 2 - 16
+
+            if title:
+                t_lines = self._wrap(draw, title, title_font, tw_max)
+                for tl in t_lines:
+                    draw.text((tx, ry), tl, font=title_font, fill=main)
+                    ry += 38
+
+            if text:
+                b_lines = self._wrap(draw, text, body_font, tw_max)
+                for bl in b_lines:
+                    draw.text((tx, ry), bl, font=body_font, fill=dim)
+                    ry += 32
+            ry += 24
+
+        return max(y + total_h, ry) + 32
+
     # ── visual: cta_pill ──────────────────────────────────────────────────────
 
     def _draw_cta_pill(self, draw, theme, text, y):
@@ -1507,6 +1761,22 @@ class CarouselGenerator:
                 visual_data.get("left_items", []),
                 visual_data.get("right_title", ""),
                 visual_data.get("right_items", []), y)
+        elif visual_type == "pull_quote":
+            y = self._draw_pull_quote(draw, effective_theme,
+                visual_data.get("text", ""),
+                visual_data.get("author", ""), y)
+        elif visual_type == "stat_grid" and visual_data.get("stats"):
+            y = self._draw_stat_grid(draw, effective_theme, visual_data["stats"], y)
+        elif visual_type == "highlight_card":
+            y = self._draw_highlight_card(draw, effective_theme,
+                visual_data.get("heading", ""),
+                visual_data.get("subtext", ""), y)
+        elif visual_type == "steps_flow" and visual_data.get("steps"):
+            y = self._draw_steps_flow(draw, effective_theme, visual_data["steps"], y)
+        elif visual_type == "magazine_split":
+            y = self._draw_magazine_split(draw, effective_theme,
+                visual_data.get("big_label", ""),
+                visual_data.get("items", []), y)
 
         if cta_pill:
             self._draw_cta_pill(draw, effective_theme, cta_pill, y + 8)
