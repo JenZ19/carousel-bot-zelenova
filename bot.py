@@ -25,7 +25,7 @@ generator = CarouselGenerator()
 
 # модели: карусель — gpt-4o; кликбейт-обложка — умнее (при ошибке откат на gpt-4o)
 CAROUSEL_MODEL = "gpt-4o"
-COVER_MODEL = "gpt-4.5-preview"
+COVER_MODEL = "gpt-4o"
 
 sessions: dict = {}
 
