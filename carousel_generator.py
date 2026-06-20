@@ -460,14 +460,24 @@ class CarouselGenerator:
 
     def _draw_headline(self, draw, theme, title, accent_word, y, max_width, font_size=88, x=None, use_display=False):
         t = THEMES[theme]
-        # Playfair Italic — редакционный заголовок; для обложки крупнее
-        font = self._playfair_italic(font_size) if use_display else self._playfair_italic(font_size)
         main = hex_to_rgb(t["text"])
         accent = hex_to_rgb(t["accent"])
         if x is None:
             x = PAD
 
         words = title.split()
+
+        # авто-уменьшение: если самое длинное слово не влезает по ширине — уменьшаем шрифт,
+        # чтобы длинное слово («приспосабливаться») не вылезало за край
+        font = self._playfair_italic(font_size)
+        min_size = 44
+        while font_size > min_size:
+            widest = max((self._tw(draw, w, font) for w in words), default=0)
+            if widest <= max_width:
+                break
+            font_size -= 4
+            font = self._playfair_italic(font_size)
+
         lines = []
         current = []
         for word in words:
