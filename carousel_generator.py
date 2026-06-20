@@ -1359,12 +1359,15 @@ class CarouselGenerator:
         self._dashed_rect(draw, fx - 16, fy - 40, fx + fw + 16, fy + fh + 16, accent, 2, dash=12, gap=8)
         self._draw_tracked(draw, (fx - 6, fy - 36), "SCOPE", lbl_font, accent, 2)
         # сама «папка»: цветной таб + тело с линиями
+        # линии внутри контрастны к цвету папки: тёмный акцент → белые линии,
+        # светлый акцент (hot=белый) → линии цветом фона слайда
+        folder_line = (255, 255, 255) if sum(accent) < 480 else bg
         draw.rectangle([fx, fy, fx + 52, fy + 18], fill=accent)
         draw.rectangle([fx, fy + 14, fx + fw, fy + fh], fill=accent)
         for li in range(3):
             ly = fy + 38 + li * 26
             lw = fw - 36 if li < 2 else fw - 70
-            draw.rectangle([fx + 18, ly, fx + 18 + lw, ly + 10], fill=(255, 255, 255))
+            draw.rectangle([fx + 18, ly, fx + 18 + lw, ly + 10], fill=folder_line)
         # подпись «видно»
         in_txt = f"✓ {in_label or 'видно'}"
         self._draw_tracked(draw, (fx - 6, fy + fh + 26), in_txt.upper(), lbl_font, accent, 1)
