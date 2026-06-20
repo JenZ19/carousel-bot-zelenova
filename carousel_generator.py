@@ -225,6 +225,17 @@ class CarouselGenerator:
                 self._font_cache[key] = self._bold(size)
         return self._font_cache[key]
 
+    def _mono(self, size, bold=False):
+        """JetBrains Mono — моноширинный для тегов [ read-only ], кода, схем."""
+        name = "JetBrainsMono-Bold" if bold else "JetBrainsMono-Regular"
+        key = (name, size)
+        if key not in self._font_cache:
+            try:
+                self._font_cache[key] = ImageFont.truetype(str(FONTS_DIR / f"{name}.ttf"), size)
+            except Exception:
+                self._font_cache[key] = self._reg(size)
+        return self._font_cache[key]
+
     def _oswald(self, size, weight="Bold"):
         """Узкая дисплейная гарнитура для крупных акцентов (пара к Inter)."""
         key = ("Oswald", size, weight)
@@ -1144,6 +1155,256 @@ class CarouselGenerator:
 
         return max(col_bottoms) + 24
 
+    # ── visual: compare_table ─────────────────────────────────────────────────
+
+    def _draw_compare_table(self, draw, theme, left_header, right_header, rows, y):
+        """Двухколоночная таблица «проблема → ответ» с моно-тегами в скобках.
+        rows: [{"left": "Вдруг что-то сломает", "right": "read-only"}]"""
+        t = THEMES[theme]
+        bg = hex_to_rgb(t["bg"])
+        accent = hex_to_rgb(t["accent"])
+        main = hex_to_rgb(t["text"])
+        dim = hex_to_rgb(t["text_dim"])
+        card_border = hex_to_rgb(t["card_border"])
+
+        card_w = W - PAD * 2
+        cp = 36
+        header_h = 78
+        left_font = self._med(36)
+        tag_font = self._mono(28, bold=True)
+        hdr_font = self._mono(24)
+
+        # высота строк с учётом переноса левого текста
+        text_max_w = card_w - cp * 2 - 220  # резерв под тег справа
+        row_lines = [self._wrap(draw, r.get("left", ""), left_font, text_max_w) for r in rows]
+        line_h = 46
+        row_hs = [max(len(wl) * line_h, line_h) + 50 for wl in row_lines]
+        card_h = header_h + sum(row_hs) + 8
+
+        # белая карточка со скруглением
+        white_card = (255, 255, 255) if sum(bg) > 400 else hex_to_rgb(t["card_bg"])
+        draw.rounded_rectangle([PAD, y, PAD + card_w, y + card_h], radius=20, fill=white_card, outline=card_border, width=1)
+
+        # шапка-полоса с моно-заголовками
+        hdr_bg = tuple(int(white_card[i] * 0.93 + accent[i] * 0.07) for i in range(3))
+        draw.rounded_rectangle([PAD, y, PAD + card_w, y + header_h], radius=20, fill=hdr_bg)
+        draw.rectangle([PAD, y + header_h - 20, PAD + card_w, y + header_h], fill=hdr_bg)
+        self._draw_tracked(draw, (PAD + cp, y + 27), (left_header or "").upper(), hdr_font, accent, 2)
+        if right_header:
+            rh_txt = right_header.lower()
+            rhw = self._tw(draw, rh_txt, hdr_font)
+            draw.text((PAD + card_w - cp - rhw, y + 27), rh_txt, font=hdr_font, fill=dim)
+
+        ry = y + header_h
+        for i, r in enumerate(rows):
+            rh = row_hs[i]
+            wl = row_lines[i]
+            # левый текст
+            ty = ry + (rh - len(wl) * line_h) // 2
+            for line in wl:
+                draw.text((PAD + cp, ty), line, font=left_font, fill=main)
+                ty += line_h
+            # правый тег [ ... ] моноширинным акцентом
+            tag = r.get("right", "")
+            if tag:
+                tag_txt = f"[ {tag} ]"
+                tw = self._tw(draw, tag_txt, tag_font)
+                draw.text((PAD + card_w - cp - tw, ry + (rh - 34) // 2), tag_txt, font=tag_font, fill=accent)
+            # разделитель
+            if i < len(rows) - 1:
+                ly = ry + rh
+                draw.line([(PAD + cp, ly), (PAD + card_w - cp, ly)], fill=card_border, width=1)
+            ry += rh
+
+        return y + card_h + 32
+
+    # ── visual: number_cards ──────────────────────────────────────────────────
+
+    def _draw_number_cards(self, draw, theme, items, footer_pill, y):
+        """Вертикальные карточки: цветной кружок-номер + заголовок + подпись.
+        items: [{"number":"01","title":"...","text":"...","color":"#..."}]
+        footer_pill: опциональная плашка «✓ ...» под карточками."""
+        t = THEMES[theme]
+        accent = hex_to_rgb(t["accent"])
+        main = hex_to_rgb(t["text"])
+        dim = hex_to_rgb(t["text_dim"])
+        card_bg = hex_to_rgb(t["card_bg"])
+        card_border = hex_to_rgb(t["card_border"])
+
+        card_w = W - PAD * 2
+        cp = 28
+        circle_r = 34
+        gap = 18
+        num_font = self._bold(28)
+        title_font = self._bold(38)
+        sub_font = self._reg(28)
+        # палитра кружков — чередуем акцент темы и второй оттенок
+        palette = [accent, hex_to_rgb(t.get("tag_fixed_bg", t["accent"]))]
+
+        cy = y
+        for i, item in enumerate(items[:4]):
+            title = item.get("title", "")
+            text = item.get("text", "")
+            t_lines = self._wrap(draw, title, title_font, card_w - cp * 2 - circle_r * 2 - 24)
+            s_lines = self._wrap(draw, text, sub_font, card_w - cp * 2 - circle_r * 2 - 24) if text else []
+            inner_h = len(t_lines) * 46 + (len(s_lines) * 36 + 6 if s_lines else 0)
+            card_h = max(inner_h + cp * 2, circle_r * 2 + cp * 2 - 12)
+
+            draw.rounded_rectangle([PAD, cy, PAD + card_w, cy + card_h], radius=18, fill=card_bg, outline=card_border, width=1)
+
+            # кружок с номером
+            circ_col = palette[i % len(palette)]
+            if item.get("color"):
+                circ_col = hex_to_rgb(item["color"])
+            ccx = PAD + cp + circle_r
+            ccy = cy + card_h // 2
+            draw.ellipse([ccx - circle_r, ccy - circle_r, ccx + circle_r, ccy + circle_r], fill=circ_col)
+            num = str(item.get("number", f"{i+1:02d}"))
+            nw = self._tw(draw, num, num_font)
+            nh = self._th(draw, num, num_font)
+            draw.text((ccx - nw // 2, ccy - nh // 2 - 2), num, font=num_font, fill=(255, 255, 255))
+
+            # текст справа от кружка
+            tx = ccx + circle_r + 24
+            ty = cy + (card_h - inner_h) // 2
+            for line in t_lines:
+                draw.text((tx, ty), line, font=title_font, fill=main)
+                ty += 46
+            if s_lines:
+                ty += 6
+                for line in s_lines:
+                    draw.text((tx, ty), line, font=sub_font, fill=dim)
+                    ty += 36
+
+            cy += card_h + gap
+
+        # нижняя плашка-«пилюля» (как ✓ ничего не копировала вручную)
+        if footer_pill:
+            pill_font = self._med(30)
+            txt = f"✓  {footer_pill}"
+            tw = self._tw(draw, txt, pill_font)
+            pw = tw + 56
+            ph = 64
+            pill_bg = tuple(int(card_bg[i] * 0.5 + accent[i] * 0.18 + 255 * 0.32) for i in range(3))
+            draw.rounded_rectangle([PAD, cy + 6, PAD + pw, cy + 6 + ph], radius=ph // 2, fill=pill_bg)
+            draw.text((PAD + 28, cy + 6 + (ph - 36) // 2), txt, font=pill_font, fill=accent)
+            cy += ph + 18
+
+        return cy + 16
+
+    # ── visual: flow_diagram ──────────────────────────────────────────────────
+
+    def _draw_flow_diagram(self, draw, theme, header, badge, source, in_scope, out_scope, in_label, out_label, y):
+        """Схема доступа: source-блок → стрелка → видимый элемент (в рамке scope)
+        + затемнённые элементы с замками. Как референс @viskh_ai (SCOPE)."""
+        t = THEMES[theme]
+        bg = hex_to_rgb(t["bg"])
+        accent = hex_to_rgb(t["accent"])
+        main = hex_to_rgb(t["text"])
+        dim = hex_to_rgb(t["text_dim"])
+        card_border = hex_to_rgb(t["card_border"])
+
+        card_w = W - PAD * 2
+        cp = 32
+        header_h = 64
+        diagram_h = 360
+        card_h = header_h + diagram_h + 40
+
+        white_card = (255, 255, 255) if sum(bg) > 400 else hex_to_rgb(t["card_bg"])
+        draw.rounded_rectangle([PAD, y, PAD + card_w, y + card_h], radius=20, fill=white_card, outline=card_border, width=1)
+
+        # шапка карточки
+        hdr_font = self._mono(24)
+        self._draw_tracked(draw, (PAD + cp, y + 24), (header or "").upper(), hdr_font, dim, 2)
+        if badge:
+            bw = self._tw(draw, badge.upper(), hdr_font)
+            self._draw_tracked(draw, (PAD + card_w - cp - bw - 8, y + 24), badge.upper(), hdr_font, accent, 2)
+
+        # центр диаграммы
+        mid_y = y + header_h + diagram_h // 2 - 20
+        box_font = self._mono(26)
+        lbl_font = self._mono(22)
+
+        # source-блок слева
+        src = source or "connector"
+        sw = self._tw(draw, src, box_font)
+        sbw = sw + 44
+        sbh = 64
+        sx = PAD + cp
+        sby = mid_y - sbh // 2
+        draw.rectangle([sx, sby, sx + sbw, sby + sbh], outline=main, width=2)
+        draw.text((sx + 22, sby + (sbh - 30) // 2), src, font=box_font, fill=main)
+
+        # стрелка от source к in-scope
+        arr_x0 = sx + sbw + 8
+        in_box_x = arr_x0 + 60
+        draw.line([(arr_x0, mid_y), (in_box_x - 6, mid_y)], fill=accent, width=3)
+        draw.polygon([(in_box_x - 6, mid_y - 8), (in_box_x + 6, mid_y), (in_box_x - 6, mid_y + 8)], fill=accent)
+
+        # видимый элемент (папка) в пунктирной рамке SCOPE
+        fw, fh = 120, 130
+        fx = in_box_x + 10
+        fy = mid_y - fh // 2
+        # пунктирная рамка scope
+        self._dashed_rect(draw, fx - 16, fy - 40, fx + fw + 16, fy + fh + 16, accent, 2, dash=12, gap=8)
+        self._draw_tracked(draw, (fx - 6, fy - 36), "SCOPE", lbl_font, accent, 2)
+        # сама «папка»: цветной таб + тело с линиями
+        draw.rectangle([fx, fy, fx + 52, fy + 18], fill=accent)
+        draw.rectangle([fx, fy + 14, fx + fw, fy + fh], fill=accent)
+        for li in range(3):
+            ly = fy + 38 + li * 26
+            lw = fw - 36 if li < 2 else fw - 70
+            draw.rectangle([fx + 18, ly, fx + 18 + lw, ly + 10], fill=(255, 255, 255))
+        # подпись «видно»
+        in_txt = f"✓ {in_label or 'видно'}"
+        self._draw_tracked(draw, (fx - 6, fy + fh + 26), in_txt.upper(), lbl_font, accent, 1)
+
+        # затемнённые элементы с замками справа
+        n_out = max(len(out_scope) if out_scope else 3, 1)
+        n_out = min(n_out, 3)
+        gx = fx + fw + 70
+        avail = PAD + card_w - cp - gx
+        dw = 92
+        step = (avail - dw) // max(n_out - 1, 1) if n_out > 1 else 0
+        for i in range(n_out):
+            dx = gx + i * step
+            dy = mid_y - fh // 2
+            # документ-контур
+            draw.rectangle([dx, dy, dx + dw, dy + fh], outline=dim, width=2)
+            for li in range(3):
+                ly = dy + 30 + li * 24
+                draw.rectangle([dx + 16, ly, dx + dw - 16, ly + 8], fill=card_border)
+            # замок над документом
+            lock_cx = dx + dw // 2
+            lock_y = dy - 30
+            draw.rounded_rectangle([lock_cx - 14, lock_y, lock_cx + 14, lock_y + 22], radius=4, fill=dim)
+            draw.arc([lock_cx - 9, lock_y - 14, lock_cx + 9, lock_y + 6], 180, 360, fill=dim, width=3)
+        # подпись «не видно» по центру группы
+        out_txt = f"✕ {out_label or 'не видно'}"
+        ow = self._tracked_w(draw, out_txt.upper(), lbl_font, 1)
+        group_center = (gx + (gx + (n_out - 1) * step + dw)) // 2
+        self._draw_tracked(draw, (group_center - ow // 2, mid_y + fh // 2 + 26), out_txt.upper(), lbl_font, dim, 1)
+
+        return y + card_h + 32
+
+    def _dashed_rect(self, draw, x0, y0, x1, y1, color, width=2, dash=10, gap=6):
+        """Пунктирный прямоугольник."""
+        def dline(a, b, horizontal):
+            if horizontal:
+                x = a[0]
+                while x < b[0]:
+                    draw.line([(x, a[1]), (min(x + dash, b[0]), a[1])], fill=color, width=width)
+                    x += dash + gap
+            else:
+                yy = a[1]
+                while yy < b[1]:
+                    draw.line([(a[0], yy), (a[0], min(yy + dash, b[1]))], fill=color, width=width)
+                    yy += dash + gap
+        dline((x0, y0), (x1, y0), True)
+        dline((x0, y1), (x1, y1), True)
+        dline((x0, y0), (x0, y1), False)
+        dline((x1, y0), (x1, y1), False)
+
     # ── visual: pull_quote ────────────────────────────────────────────────────
 
     def _draw_pull_quote(self, draw, theme, text, author, y):
@@ -1777,6 +2038,24 @@ class CarouselGenerator:
             y = self._draw_magazine_split(draw, effective_theme,
                 visual_data.get("big_label", ""),
                 visual_data.get("items", []), y)
+        elif visual_type == "compare_table" and visual_data.get("rows"):
+            y = self._draw_compare_table(draw, effective_theme,
+                visual_data.get("left_header", ""),
+                visual_data.get("right_header", ""),
+                visual_data["rows"], y)
+        elif visual_type == "number_cards" and visual_data.get("items"):
+            y = self._draw_number_cards(draw, effective_theme,
+                visual_data["items"],
+                visual_data.get("footer_pill", ""), y)
+        elif visual_type == "flow_diagram":
+            y = self._draw_flow_diagram(draw, effective_theme,
+                visual_data.get("header", ""),
+                visual_data.get("badge", ""),
+                visual_data.get("source", "connector"),
+                visual_data.get("in_scope", []),
+                visual_data.get("out_scope", []),
+                visual_data.get("in_label", "видно"),
+                visual_data.get("out_label", "не видно"), y)
 
         if cta_pill:
             self._draw_cta_pill(draw, effective_theme, cta_pill, y + 8)
@@ -1888,51 +2167,94 @@ class CarouselGenerator:
 
     # ── финальный CTA-слайд ────────────────────────────────────────────────────
 
-    def generate_cta_slide(self, cta_text, theme, username, slide_num, total):
-        """Всегда горячий розовый. Playfair Italic по центру. 'СОХРАНИ ♡' внизу."""
+    def generate_cta_slide(self, cta_text, theme, username, slide_num, total, subtext="", link=""):
+        """Финал-bookmark: иконка закладки + крупный CTA Playfair Italic +
+        пилюля-ссылка t.me/... внизу. Всегда горячий розовый бренд."""
         t = THEMES["hot"]  # всегда hot независимо от выбранной темы
         bg = hex_to_rgb(t["bg"])
         img = Image.new("RGB", (W, H), bg)
 
-        # свечение — акцентный угол меняется в зависимости от номера
-        self._dec_glow(img, hex_to_rgb(t["accent"]), slide_num)
+        # мягкое свечение в правом верхнем углу
+        self._dec_glow(img, hex_to_rgb(t["accent"]), 2)
+        # точечная сетка в углу — техно-деталь как в референсе
+        self._cta_dotgrid(img, (255, 255, 255))
 
         draw = ImageDraw.Draw(img)
         main = hex_to_rgb(t["text"])          # белый
         dim = hex_to_rgb(t["text_dim"])       # нежно-розовый
+        white = (255, 255, 255)
 
         # шапка
         self._draw_top_bar(draw, "hot", username, "СОХРАНИ")
 
-        # CTA текст — Playfair Italic, большой, по центру
-        font_size = 96
+        # ── иконка закладки с плюсом (контур, справа сверху) ──
+        bm_x, bm_y = W - PAD - 96, 170
+        bm_w, bm_h = 88, 130
+        notch = 30
+        draw.line([(bm_x, bm_y), (bm_x, bm_y + bm_h)], fill=white, width=4)
+        draw.line([(bm_x + bm_w, bm_y), (bm_x + bm_w, bm_y + bm_h)], fill=white, width=4)
+        draw.line([(bm_x, bm_y), (bm_x + bm_w, bm_y)], fill=white, width=4)
+        draw.line([(bm_x, bm_y + bm_h), (bm_x + bm_w // 2, bm_y + bm_h - notch)], fill=white, width=4)
+        draw.line([(bm_x + bm_w, bm_y + bm_h), (bm_x + bm_w // 2, bm_y + bm_h - notch)], fill=white, width=4)
+        # плюс внутри
+        pcx, pcy = bm_x + bm_w // 2, bm_y + bm_h // 2 - 8
+        draw.line([(pcx - 16, pcy), (pcx + 16, pcy)], fill=white, width=4)
+        draw.line([(pcx, pcy - 16), (pcx, pcy + 16)], fill=white, width=4)
+
+        # ── бейдж номера + ник ──
+        badge_y = 360
+        num_font = self._bold(26)
+        num_txt = f"{slide_num:02d}"
+        nbw = self._tw(draw, num_txt, num_font) + 28
+        draw.rectangle([PAD, badge_y, PAD + nbw, badge_y + 46], fill=white)
+        draw.text((PAD + 14, badge_y + 6), num_txt, font=num_font, fill=hex_to_rgb(t["bg"]))
+        self._draw_tracked(draw, (PAD + nbw + 18, badge_y + 10), username.upper(), self._mono(24), dim, 2)
+
+        # ── CTA текст — Playfair Italic, крупный, слева ──
+        font_size = 92
         font = self._playfair_italic(font_size)
         max_w = W - PAD * 2
         lines = self._wrap(draw, cta_text, font, max_w)
-        line_h = int(font_size * 1.22)
-        text_block_h = len(lines) * line_h
-
-        # вертикальный центр между шапкой (130px) и подвалом (130px)
-        usable_start = 130
-        usable_end = H - 130
-        center_y = (usable_start + usable_end) // 2
-        y = center_y - text_block_h // 2
-
-        for line in lines:
-            lw = self._tw(draw, line, font)
-            draw.text((PAD + (max_w - lw) // 2, y), line, font=font, fill=main)
+        line_h = int(font_size * 1.18)
+        y = badge_y + 84
+        for li, line in enumerate(lines):
+            # вторую строку подсвечиваем нежно-розовым для ритма
+            fill = main if li == 0 else main
+            draw.text((PAD, y), line, font=font, fill=fill)
             y += line_h
 
-        # тонкая белая черта — разделитель
-        div_y = y + 36
-        accent_col = hex_to_rgb(t["card_border"])
-        draw.rectangle([PAD + 80, div_y, W - PAD - 80, div_y + 2], fill=accent_col)
+        # подпись под CTA
+        if subtext:
+            y += 14
+            sf = self._reg(38)
+            for wl in self._wrap(draw, subtext, sf, max_w):
+                draw.text((PAD, y), wl, font=sf, fill=dim)
+                y += 52
 
-        # username под чертой — мелкие капсы с разрядкой
-        user_font = self._med(26)
-        uw = self._tracked_w(draw, username.upper(), user_font, 4)
-        ux = PAD + (max_w - uw) // 2
-        self._draw_tracked(draw, (ux, div_y + 22), username.upper(), user_font, dim, 4)
+        # ── пилюля-ссылка внизу ──
+        link_txt = link or f"t.me/{username.lstrip('@')}"
+        pill_font = self._bold(34)
+        ptw = self._tw(draw, link_txt, pill_font)
+        pad_h = 36
+        icon_sp = 50
+        pw = ptw + pad_h * 2 + icon_sp
+        ph = 80
+        px = PAD
+        py = H - 240
+        draw.rounded_rectangle([px, py, px + pw, py + ph], radius=ph // 2, fill=white)
+        # кружок-иконка телеграм (плоский)
+        ic = hex_to_rgb(t["accent"])
+        icx, icy = px + pad_h + 4, py + ph // 2
+        draw.ellipse([icx - 16, icy - 16, icx + 16, icy + 16], fill=ic)
+        draw.polygon([(icx - 8, icy + 1), (icx + 9, icy - 7), (icx + 3, icy + 8)], fill=white)
+        draw.text((icx + 30, py + (ph - 42) // 2), link_txt, font=pill_font, fill=hex_to_rgb(t["bg"]))
+        # стрелочка ↗
+        arr_font = self._bold(34)
+        draw.text((px + pw - 34, py + (ph - 42) // 2), "↗", font=arr_font, fill=dim)
+
+        # подсказка под пилюлей
+        hint_font = self._mono(22)
+        self._draw_tracked(draw, (PAD + 6, py + ph + 18), "ССЫЛКА В ШАПКЕ ПРОФИЛЯ", hint_font, dim, 2)
 
         # подвал
         self._draw_bottom_bar(draw, "hot", slide_num, total, is_last=True, username=username)
@@ -1940,6 +2262,17 @@ class CarouselGenerator:
         tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
         img.save(tmp.name, "PNG")
         return tmp.name
+
+    def _cta_dotgrid(self, img, color):
+        """Точечная сетка в правом верхнем углу — техно-акцент финала."""
+        overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        d = ImageDraw.Draw(overlay)
+        col = color + (40,)
+        r = 3
+        for yy in range(140, 320, 34):
+            for xx in range(W - 320, W - 120, 34):
+                d.ellipse([xx - r, yy - r, xx + r, yy + r], fill=col)
+        self._composite(img, overlay)
 
     # ── кликбейтная обложка для Reels/Shorts (9:16) ────────────────────────────
 

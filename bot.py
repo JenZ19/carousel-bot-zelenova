@@ -58,6 +58,8 @@ def get_session(user_id: int) -> dict:
             "theme": "fuchsia",
             "username": "@zelenova_marketing",
             "cta_text": "Сохрани, чтобы не потерять",
+            "cta_subtext": "",
+            "cta_auto": False,
         }
     return sessions[user_id]
 
@@ -88,6 +90,7 @@ def cta_keyboard():
     return InlineKeyboardMarkup(
         [[InlineKeyboardButton(label, callback_data=f"cta:{val}")] for label, val in presets]
         + [[InlineKeyboardButton("✏️ Свой вариант", callback_data="cta:__custom__")]]
+        + [[InlineKeyboardButton("🤖 Пусть GPT придумает по тексту", callback_data="cta:__auto__")]]
     )
 
 
@@ -245,6 +248,9 @@ visual_type варианты (НЕ используй photo_text — фото д
 • "highlight_card" — крупная акцентная карточка-удар на весь слайд. visual_data: {{"heading": "Заголовок Playfair Italic", "subtext": "пояснение"}}. Для ключевой мысли, вывода, финального послания. slide_style="editorial" → карточка будет ярко-розовой; slide_style="accent" → карточка светлая.
 • "steps_flow" — горизонтальные шаги со стрелками (схема "как это работает"). visual_data: {{"steps": [{{"number": "1", "title": "Шаг", "text": "пояснение"}}]}}. 3–4 шага. Для процессов, алгоритмов, роадмапов.
 • "magazine_split" — асимметричный разворот: 1/3 слева = большое слово/фраза Playfair, 2/3 справа = список. visual_data: {{"big_label": "5 шагов", "items": [{{"title": "Заголовок пункта", "text": "описание"}}]}}. Журнальный стиль. Максимум 4 пункта.
+• "compare_table" — двухколоночная таблица «проблема → ответ» с моноширинными тегами в скобках [ ... ]. visual_data: {{"left_header": "СТРАХ", "right_header": "на каждый есть ответ", "rows": [{{"left": "Вдруг что-то сломает", "right": "read-only"}}]}}. Идеально для «страх→ответ», «миф→правда», «было→стало». 2-4 строки. Правый тег короткий (1-3 слова).
+• "number_cards" — вертикальные карточки: цветной кружок-номер 01/02/03 + заголовок + подпись мелким шрифтом. visual_data: {{"items": [{{"number": "01", "title": "Подключаешь нужную базу", "text": "только на чтение, ничего лишнего"}}], "footer_pill": "ничего не копировала вручную"}}. Для шагов/сценариев. footer_pill опционален (плашка ✓ внизу). 2-3 карточки.
+• "flow_diagram" — СХЕМА доступа/связей: блок-источник → стрелка → видимый элемент в рамке + затемнённые элементы с замками. visual_data: {{"header": "БАЗА ДАННЫХ", "badge": "В SCOPE: 1 / 4", "source": "connector", "in_scope": ["видимое"], "out_scope": ["скрыто","скрыто","скрыто"], "in_label": "видно", "out_label": "не видно"}}. Для визуализации «что видит/не видит система», прав доступа, scope. Используй когда в тексте речь про доступ/видимость/ограничения.
 
 🎨 СТИЛЬ СЛАЙДА (slide_style) — ОБЯЗАТЕЛЬНОЕ поле:
 • "accent" — яркий горячий розовый фон, белый текст. ОБЯЗАТЕЛЕН для: слайда 1 (всегда!), цитат (quote), больших цифр (number/big_stat), последнего слайда. Не более 30% слайдов.
@@ -264,6 +270,21 @@ visual_type варианты (НЕ используй photo_text — фото д
 • "cta_pill": "текст кнопки →" — кнопка внизу
 
 Текст пользователя:
+{text}"""
+
+
+CTA_AUTO_PROMPT = """Ты пишешь финальный слайд-призыв Instagram-карусели в стиле @zelenova_marketing.
+По тексту поста придумай короткий цепляющий призыв к действию для последнего слайда.
+
+Верни ТОЛЬКО JSON (без объяснений):
+{{"cta": "главная фраза 2-5 слов", "subtext": "короткая добивка 4-8 слов или \\"\\""}}
+
+Правила:
+- cta — императив или обещание: «Сохрани, чтобы не потерять», «Забери чек-лист», «Пиши — разберём твою ситуацию». 2–5 слов.
+- subtext — одна короткая строка пояснения ПОД призывом (зачем сохранять / что получишь). Можно "".
+- По-русски, живо, по теме поста. ЗАПРЕЩЕНЫ пустые штампы («полезная информация»).
+
+Текст поста:
 {text}"""
 
 
@@ -354,6 +375,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # пользователь вводит свой призыв к действию
     if s["step"] == STEP_CTA:
         s["cta_text"] = update.message.text.strip()
+        s["cta_subtext"] = ""
+        s["cta_auto"] = False
         s["step"] = STEP_THEME
         await update.message.reply_text(
             f"Призыв записан: «{s['cta_text']}» ✓\n\n"
@@ -517,13 +540,34 @@ async def _run_make(uid: int, reply_func, edit_func):
             )
             slide_files.append(path)
 
-        # финальный CTA-слайд
+        # финальный CTA-слайд — текст призыва: ручной или придуманный GPT
+        cta_text = s.get("cta_text") or "Сохрани, чтобы не потерять"
+        cta_subtext = s.get("cta_subtext", "")
+        if s.get("cta_auto"):
+            try:
+                cta_resp = client.chat.completions.create(
+                    model=CAROUSEL_MODEL,
+                    max_tokens=200,
+                    messages=[{"role": "user", "content": CTA_AUTO_PROMPT.format(text=text)}],
+                )
+                craw = cta_resp.choices[0].message.content.strip()
+                if craw.startswith("```"):
+                    craw = craw.split("```")[1]
+                    if craw.startswith("json"):
+                        craw = craw[4:]
+                cta_data = json.loads(craw)
+                cta_text = cta_data.get("cta") or cta_text
+                cta_subtext = cta_data.get("subtext", "")
+            except Exception as e:
+                logger.error(f"CTA auto error: {e}")  # тихий фолбэк на дефолт
+
         cta_path = generator.generate_cta_slide(
-            cta_text=s.get("cta_text", "Сохрани, чтобы не потерять"),
+            cta_text=cta_text,
             theme=s["theme"],
             username=s["username"],
             slide_num=total_with_cta,
             total=total_with_cta,
+            subtext=cta_subtext,
         )
         slide_files.append(cta_path)
 
@@ -785,10 +829,22 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("cta:"):
         val = data[4:]
         if val == "__custom__":
+            s["cta_auto"] = False
             s["step"] = STEP_CTA
             await query.edit_message_text("Напиши свой призыв к действию — одна короткая фраза:")
+        elif val == "__auto__":
+            s["cta_auto"] = True
+            s["cta_text"] = ""
+            s["step"] = STEP_THEME
+            await query.edit_message_text(
+                "🤖 Ок, придумаю призыв сама по смыслу поста ✓\n\n"
+                "Шаг 4 из 4 — выбери тему 🎨",
+                reply_markup=theme_keyboard(s["theme"]),
+            )
         else:
+            s["cta_auto"] = False
             s["cta_text"] = val
+            s["cta_subtext"] = ""
             s["step"] = STEP_THEME
             await query.edit_message_text(
                 f"Призыв: «{val}» ✓\n\n"
